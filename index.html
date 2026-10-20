@@ -79,6 +79,13 @@ button { font: inherit; cursor: pointer; }
 .search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 18px; padding: 12px 0; outline: none; }
 .search .clear { border: 0; background: transparent; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
 
+.tchips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; margin: -2px -2px 0; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+@media (min-width: 700px) { .tchips { flex-wrap: wrap; overflow: visible; } }
+.tchips button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: 15px; cursor: pointer; white-space: nowrap; }
+.tchips button .n { font-size: 12.5px; font-variant-numeric: tabular-nums; min-width: 22px; text-align: center; padding: 0 7px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.tchips button[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--surface); }
+.tchips button[aria-pressed="true"] .n { background: var(--surface); color: var(--fg); }
+.tchips button:disabled { opacity: .45; cursor: default; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips .lbl { font-size: 13px; color: var(--muted); margin-right: 4px; align-self: center; }
 .sym { border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 3px 11px; border-radius: 999px; font-size: 14px; }
@@ -529,6 +536,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
       <input id="dq" type="text" placeholder="ค้นหาหมอ: ชื่อ ประเภทหมอ รางวัล กรรมวิธี สถานที่" autocomplete="off" aria-label="ค้นหาหมอพื้นบ้าน">
       <button class="clear" id="clearDq" type="button" hidden>ล้าง</button>
     </div>
+    <div class="tchips" id="typeChips" role="group" aria-label="กรองตามประเภทหมอ"></div>
     <div class="fbar" id="dirFilters" role="group" aria-label="ตัวกรองทำเนียบ">
       <label for="provSelDir">จังหวัด<select id="provSelDir" class="provsel"></select></label>
       <label for="fDist">อำเภอ<select id="fDist" data-f="dist"></select></label>
@@ -1174,9 +1182,10 @@ document.addEventListener("click", async e => {
   }
 });
 // ---- directory filters ----
-S.f = { dist: "all", sub: "all", award: "all", meth: "all" };
+S.f = { type: "all", dist: "all", sub: "all", award: "all", meth: "all" };
 function dirOK(h, skip) {
   if (!provOK(h)) return false;
+  if (skip !== "type" && S.f.type !== "all" && !htypesOf(h).includes(S.f.type)) return false;
   if (skip !== "dist" && S.f.dist !== "all" && distName(h.district) !== S.f.dist) return false;
   if (skip !== "sub" && S.f.sub !== "all" && subName(h.subdistrict) !== S.f.sub) return false;
   if (skip !== "award" && S.f.award !== "all") {
@@ -1199,10 +1208,14 @@ function renderDirFilters() {
   set("#fSub", opt("all", subs.length ? "ทุกตำบล" : "ยังไม่มีข้อมูลตำบล") + subs.map(d => opt(d, d, count("sub", h => subName(h.subdistrict) === d))).join(""), S.f.sub);
   set("#fAward", opt("all", "ทั้งหมด") + opt("__lic", "มีใบประจำตัวหมอพื้นบ้าน", count("award", h => !!h.licenseNo)) + opt("__any", "มีรางวัลหรือตำแหน่ง", count("award", h => !!h.award)) + awards.map(a => opt(a, a, count("award", h => h.award === a))).join(""), S.f.award);
   set("#fMeth", opt("all", "ทุกกรรมวิธี") + METHODS.map(([k, l]) => opt(k, l, count("meth", h => arr(h.methods).includes(k)))).join(""), S.f.meth);
+  const tc = t => count("type", h => htypesOf(h).includes(t));
+  $("#typeChips").innerHTML = `<button type="button" data-htf="all" aria-pressed="${S.f.type === "all"}">ทั้งหมด <span class="n">${count("type", () => true)}</span></button>` +
+    HTYPES.map(t => { const n = tc(t); return `<button type="button" data-htf="${esc(t)}" aria-pressed="${S.f.type === t}"${n || S.f.type === t ? "" : " disabled"}>${esc(t)} <span class="n">${n}</span></button>`; }).join("");
   $("#fClear").hidden = S.prov === "all" && Object.values(S.f).every(v => v === "all");
 }
 function filterLabel() {
   const parts = [];
+  if (S.f.type !== "all") parts.push(S.f.type);
   if (S.prov !== "all") parts.push("จ." + S.prov);
   if (S.f.dist !== "all") parts.push("อ." + S.f.dist);
   if (S.f.sub !== "all") parts.push("ต." + S.f.sub);
@@ -1217,7 +1230,7 @@ function renderDir() {
   renderDirFilters();
   const list = S.healers.filter(h => dirOK(h) && terms.every(t => hay(h).includes(squash(t))));
   const by = {};
-  list.forEach(h => htypesOf(h).forEach(t => (by[t] ||= []).push(h)));
+  list.forEach(h => htypesOf(h).forEach(t => { if (S.f.type === "all" || t === S.f.type) (by[t] ||= []).push(h); }));
   const types = Object.keys(by).sort((a, b) => { const ia = HTYPES.indexOf(a), ib = HTYPES.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, "th"); });
   $("#dirStatus").textContent = S.healers.length ? `${S.healers.length} ท่าน · ${types.length} ประเภท · ${S.recipes.length} ตำรับ${S.healers.some(h => htypesOf(h).length > 1) ? " · หมอที่มีหลายประเภทแสดงในทุกกลุ่มของตน" : ""}` : "";
   $("#addHealer").hidden = !isStaff();
@@ -1453,7 +1466,7 @@ document.addEventListener("click", async e => {
   if (a === "editRecipe") openForm("recipes", S.recipes.find(r => r.id === id));
   if (a === "newFromDoc" && isAdmin()) openForm("healers", { consent: "agency", methods: [] });
   if (a === "clearSyms") { S.syms = []; render(); }
-  if (a === "clearFilters") { S.prov = "all"; S.f = { dist: "all", sub: "all", award: "all", meth: "all" }; render(); }
+  if (a === "clearFilters") { S.prov = "all"; S.f = { type: "all", dist: "all", sub: "all", award: "all", meth: "all" }; render(); }
   if (a === "login") openLogin();
   if (a === "logout") logout();
   if (a === "closeForm") $("#formSlot").innerHTML = "";
@@ -1479,6 +1492,7 @@ $("#q").addEventListener("keydown", e => {
   if (!S.syms.some(x => squash(x) === squash(v))) S.syms = [...S.syms, v];
   S.q = ""; e.target.value = ""; $("#clearQ").hidden = true; render();
 });
+$("#typeChips").addEventListener("click", e => { const b = e.target.closest("[data-htf]"); if (!b || b.disabled) return; S.f.type = b.dataset.htf; render(); });
 $("#dq").addEventListener("input", e => { S.dq = e.target.value; $("#clearDq").hidden = !S.dq; render(); });
 $("#clearDq").addEventListener("click", () => { S.dq = ""; $("#dq").value = ""; $("#clearDq").hidden = true; $("#dq").focus(); render(); });
 $("#clearQ").addEventListener("click", () => { S.q = ""; $("#q").value = ""; $("#clearQ").hidden = true; render(); });
