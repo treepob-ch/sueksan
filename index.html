@@ -1057,7 +1057,7 @@ function recipeCard(it, showOwner = true) {
   const body = it.kind === "recipe" || it.kind === "text"
     ? rfield(it, "ingredients", "ส่วนประกอบ") + rfield(it, "properties", "สรรพคุณ") + rfield(it, "preparation", "วิธีทำ") + rfield(it, "usage", "วิธีใช้ / วิธีรับประทาน") + rfield(it, "caution", "ข้อควรระวัง", "warn")
       + (it.kind === "text" ? srcLine(it.source || "ไม่ระบุชื่อเอกสาร", "") : "")
-      + (it.hash ? `<div class="src">จากแบบ ม.บ.1-1 ของหมอพื้นบ้านที่ได้รับการรับรองแล้ว${h?.licenseNo ? " (หนังสือรับรองเลขที่ " + esc(h.licenseNo) + ")" : ""} · ลายนิ้วมือดิจิทัล <code>${esc(it.hash.slice(0, 16))}…</code></div>` : "")
+      + (it.hash ? `<div class="src">จากแบบ ม.บ.1-1 ของหมอพื้นบ้านที่ได้รับการรับรองแล้ว${h?.licenseNo ? " (หนังสือรับรองเลขที่ " + esc(h.licenseNo) + ")" : ""} · รหัสยืนยันความถูกต้อง <code>${esc(it.hash.slice(0, 16))}…</code></div>` : "")
     : field("วิธีใช้", it.howto) + field("ข้อควรระวัง", it.caution, "warn") + field("เมื่อไรควรพบแพทย์", it.seeDoctor, "doc") + srcLine(it.sourceTitle, it.sourceUrl);
   const owner = h && showOwner ? `<div class="owner">ตำรับของ <button class="link" type="button" data-act="openHealer" data-id="${h.id}">${esc(h.name)}</button> · ${esc(h.healerType || "")}${h.province ? " · " + esc(h.province) : ""}</div>` : "";
   const acts = isStaff() && it.kind === "recipe" && (isAdmin() || it.fromField) ? `<div class="acts">${it.fromField && S.fieldOk ? `<button class="btn" type="button" data-nact="open" data-id="${it.fromField}">เปิดแฟ้มบันทึก</button>` : ""}${isAdmin() && !it.fromField ? `<button class="btn" type="button" data-act="editRecipe" data-id="${it.id}">แก้ไขตำรับ</button><span class="sp"></span>${delCtl("recipes", it.id)}` : ""}</div>` : "";
@@ -2421,7 +2421,7 @@ function renderRequest(n) {
       <h2 id="h6s"><span class="n">5</span>หน้าตาในทำเนียบและประวัติ</h2>
       <p class="help">${n.consent.publish ? "สิ่งที่คนทั่วไปจะเห็นในทำเนียบ" : "หมอยังไม่ยินยอมให้เผยแพร่ ตัวอย่างนี้จะไม่แสดงในทำเนียบ"}</p>
       <div id="pvSlot">${preview(n)}</div>
-      ${n.hash ? `<div style="display:grid;gap:4px"><span class="status" style="font-weight:600">ลายนิ้วมือดิจิทัล (SHA-256) · ${fmtDT(n.hashAt)}</span><div class="fp">${n.hash.match(/.{1,8}/g).join(" ")}</div><span class="status">ยืนยันว่าองค์ความรู้นี้เป็นของหมอท่านนี้ ณ วันที่บันทึก สร้างใหม่ทุกครั้งที่อัปเดตทำเนียบ และเก็บประวัติไว้</span></div>` : ""}
+      ${n.hash ? `<div style="display:grid;gap:4px"><span class="status" style="font-weight:600">รหัสยืนยันความถูกต้อง (SHA-256) · ${fmtDT(n.hashAt)}</span><div class="fp">${n.hash.match(/.{1,8}/g).join(" ")}</div><span class="status">ยืนยันว่าองค์ความรู้นี้เป็นของหมอท่านนี้ ณ วันที่บันทึก สร้างใหม่ทุกครั้งที่อัปเดตทำเนียบ และเก็บประวัติไว้</span></div>` : ""}
       ${wdInfo(n)}
       <div style="display:grid;gap:6px"><span class="status" style="font-weight:600">ประวัติ</span>
         <ol class="hist">${n.history.slice().reverse().map(h => `<li><time>${fmtDT(h.at)}</time><span>${esc(h.text)}</span></li>`).join("")}</ol></div>
@@ -2547,7 +2547,7 @@ function noteActions(n) {
     if (n.erased) return "";
     if (!S.eraseAsk) return `<div><button class="btn danger" type="button" data-nact="eraseAsk">ลบเนื้อหาตามคำขอของหมอ</button></div>`;
     return `<div class="wdbox"><h3>ลบเนื้อหาทั้งหมดตามคำขอของหมอ?</h3>
-      <p class="help">เสียง ภาพ คำบอกเล่า ข้อมูลหมอ ความยินยอม และตำรับจะถูกลบถาวร เหลือเฉพาะวันที่ เลขหนังสือ เหตุผล และลายนิ้วมือดิจิทัลไว้ทวนสอบ กู้คืนไม่ได้</p>
+      <p class="help">เสียง ภาพ คำบอกเล่า ข้อมูลหมอ ความยินยอม และตำรับจะถูกลบถาวร เหลือเฉพาะวันที่ เลขหนังสือ เหตุผล และรหัสยืนยันความถูกต้องไว้ทวนสอบ กู้คืนไม่ได้</p>
       <div class="acts" style="border:0;padding:0"><button class="btn danger solid" type="button" data-nact="eraseYes">ลบเนื้อหาถาวร</button><button class="btn" type="button" data-nact="eraseNo">ยกเลิก</button></div></div>`;
   }
   return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
