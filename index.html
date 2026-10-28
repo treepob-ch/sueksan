@@ -145,6 +145,17 @@ button { font: inherit; cursor: pointer; }
 .catbox { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; background: var(--surface); border-left: 6px solid var(--cb, var(--line)); }
 .catbox.c-drug { --cb: var(--leaf); } .catbox.c-proc { --cb: var(--turmeric); } .catbox.c-other { --cb: var(--indigo); }
 #itemsBox { display: grid; gap: 14px; }
+.aipick { border: 2px solid var(--indigo); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; background: var(--indigo-soft, #e9ecf7); }
+.aipick .aph { display: grid; gap: 2px; }
+.aipick .apr { display: grid; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.aipick .apt { display: grid; gap: 2px; } .aipick .apt small { color: var(--muted); }
+.aipick .apo { display: flex; flex-wrap: wrap; gap: 6px; }
+.aipick .apo label { display: inline-flex !important; flex-direction: row !important; width: auto; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 14.5px; background: var(--surface); }
+.aipick .apo label.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); font-weight: 600; }
+.aipick .apo label.skip.on { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+.aipick .apo input { width: auto; margin: 0; flex: none; }
+.aipick .apo em { font-style: normal; font-size: 11.5px; background: var(--turmeric-soft); color: var(--turmeric); border-radius: 999px; padding: 0 7px; }
+.aipick .apa { display: flex; flex-wrap: wrap; gap: 8px; }
 .catbox .cbh { display: grid; gap: 2px; }
 .catbox h4 { margin: 0; font-size: 17px; display: flex; gap: 8px; align-items: baseline; }
 .catbox h4 small { font-weight: 400; font-size: 13px; color: var(--muted); }
@@ -1666,6 +1677,16 @@ document.addEventListener("click", async e => {
 });
 $("#addHealer").addEventListener("click", openChooser);
 let FM = null; // media being edited in the ตำรับ form
+document.addEventListener("change", e => {
+  const el = e.target; if (!el.dataset?.aicat) return; const n = S.draft; if (!n || nlocked(n)) return;
+  const x = n.aiItems.find(y => y.id === el.dataset.aicat); if (!x) return;
+  x.cat = el.value; n.updatedAt = Date.now(); scheduleSave(); rerenderItems(n);
+});
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-aiact]"); if (!t) return; const n = S.draft; if (!n || nlocked(n)) return;
+  if (t.dataset.aiact === "discard") { n.aiItems = []; n.updatedAt = Date.now(); scheduleSave(); rerenderItems(n); toast("ยกเลิกรายการจาก AI แล้ว"); return; }
+  const c = importAiItems(n); n.updatedAt = Date.now(); scheduleSave(); rerenderItems(n); toast(`นำเข้าแล้ว ${c} รายการ ตรวจกับต้นฉบับก่อนบันทึกเข้าคลัง`);
+});
 document.addEventListener("click", e => {
   const t = e.target.closest("[data-additem],[data-askdel],[data-delitem],[data-xvis]"); if (!t) return;
   const n = S.draft; if (!n || nlocked(n)) return;
@@ -1928,7 +1949,7 @@ function blankNote(id, h) {
     healerId: h?.id || "",
     healer: profileOf(h), origin: "request", docRecipes: [], archived: null, mb: blankMb(), docs: blankDocs(), qual: blankQual(), fix: null, fixLog: [],
     transcript: "", audio: [], photos: [], methods: arr(h?.methods).length ? arr(h.methods) : ["herb"],
-    recipe: { name: "", symptoms: "", ingredients: "", preparation: "", usage: "", properties: "", caution: "" }, cat: "", media: blankMedia(), extra: [], mainOn: false,
+    recipe: { name: "", symptoms: "", ingredients: "", preparation: "", usage: "", properties: "", caution: "" }, cat: "", media: blankMedia(), extra: [], mainOn: false, aiItems: [],
     vis: { ...DEFVIS }, review: { by: "", note: "", assignedTo: provName(h?.province), checks: { plant: false, caution: false, transcript: false } },
     consent: { method: "none", by: "", witness: "", date: "", interview: false, publish: false, location: false, photo: false, research: false, commercial: false },
     needReconfirm: false, hash: "", hashAt: 0, publishedHealerId: "", publishedRecipeId: "", submittedBy: "", approval: null,
@@ -1942,7 +1963,7 @@ function normalize(n) {
   if (!healer.personName) healer.personName = personOf(healer);
   if (!healer.prefix && healer.name) healer.prefix = splitName(healer.name).prefix;
   delete healer.type;
-  return { ...b, ...n, healer, status: ["ready", "review", "approval", "rejected", "lapsed"].includes(n.status) ? "draft" : SL[n.status] === undefined ? "draft" : n.status, recipe: { ...b.recipe, ...n.recipe }, cat: RCL[n.cat] ? n.cat : "", media: { ...b.media, ...n.media }, extra: arr(n.extra).map(x => ({ id: x.id || Math.random().toString(36).slice(2, 10), cat: RCL[x.cat] ? x.cat : "drug", methods: arr(x.methods), recipe: { ...blankRecipe(), ...x.recipe }, vis: { ...DEFVIS, ...x.vis }, media: { ...blankMedia(), ...x.media }, pubId: x.pubId || "" })), orphans: arr(n.orphans), vis: { ...b.vis, ...n.vis }, review: { ...b.review, ...n.review }, consent: { ...b.consent, ...n.consent }, mb: { ...b.mb, ...n.mb }, docs: { ...b.docs, ...n.docs }, qual: { ...b.qual, ...n.qual }, fixLog: arr(n.fixLog), audio: arr(n.audio), photos: arr(n.photos), methods: arr(n.methods), history: arr(n.history) };
+  return { ...b, ...n, healer, status: ["ready", "review", "approval", "rejected", "lapsed"].includes(n.status) ? "draft" : SL[n.status] === undefined ? "draft" : n.status, recipe: { ...b.recipe, ...n.recipe }, cat: RCL[n.cat] ? n.cat : "", media: { ...b.media, ...n.media }, extra: arr(n.extra).map(x => ({ id: x.id || Math.random().toString(36).slice(2, 10), cat: RCL[x.cat] ? x.cat : "drug", methods: arr(x.methods), recipe: { ...blankRecipe(), ...x.recipe }, vis: { ...DEFVIS, ...x.vis }, media: { ...blankMedia(), ...x.media }, pubId: x.pubId || "" })), orphans: arr(n.orphans), aiItems: arr(n.aiItems).filter(x => x && x.recipe).map(x => ({ id: x.id || Math.random().toString(36).slice(2, 10), cat: RCL[x.cat] ? x.cat : "", sug: RCL[x.sug] ? x.sug : "", recipe: { ...blankRecipe(), ...x.recipe } })), vis: { ...b.vis, ...n.vis }, review: { ...b.review, ...n.review }, consent: { ...b.consent, ...n.consent }, mb: { ...b.mb, ...n.mb }, docs: { ...b.docs, ...n.docs }, qual: { ...b.qual, ...n.qual }, fixLog: arr(n.fixLog), audio: arr(n.audio), photos: arr(n.photos), methods: arr(n.methods), history: arr(n.history) };
 }
 const getP = (o, p) => p.split(".").reduce((a, k) => a?.[k], o);
 function setP(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
@@ -2382,11 +2403,49 @@ function itemHtml(n, it, no, dis) {
 }
 function recipeFieldsHtml(n, dis) {
   const items = noteItems(n);
-  return `<div id="itemsBox">${RCATS.map(([k, l, d]) => { const its = items.filter(i => i.cat === k); return `<section class="catbox c-${k}">
+  return `<div id="itemsBox">${aiPanelHtml(n, dis)}${RCATS.map(([k, l, d]) => { const its = items.filter(i => i.cat === k); return `<section class="catbox c-${k}">
     <div class="cbh"><h4>${CATICON[k]} ${l}<small>${its.length} รายการ</small></h4><span class="help">${d}</span></div>
     ${its.map((it, j) => itemHtml(n, it, j + 1, dis)).join("") || `<p class="none">ยังไม่มี${l}ในบันทึกนี้</p>`}
     ${dis ? "" : `<button class="btn add" type="button" data-additem="${k}">+ เพิ่ม${l}</button>`}
   </section>`; }).join("")}</div>`;
+}
+// AI แยกรายการจากเอกสาร/คำบอกเล่า → รอเจ้าหน้าที่ติ๊กประเภทก่อนนำเข้ากล่อง
+function aiPending(raw) {
+  const out = [];
+  for (const x of arr(raw)) {
+    if (!x || typeof x !== "object") continue;
+    const recipe = blankRecipe(); for (const [k] of NRF) { const v = x[k]; recipe[k] = typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : ""; }
+    if (!NRF.some(([k]) => recipe[k])) continue;
+    const sug = RCL[x.cat] ? x.cat : recCat({ name: recipe.name, methods: [] });
+    out.push({ id: Math.random().toString(36).slice(2, 10), cat: sug, sug, recipe });
+  }
+  return out;
+}
+function aiPanelHtml(n, dis) {
+  const P = arr(n.aiItems); if (!P.length || dis) return "";
+  const ready = P.filter(x => RCL[x.cat]).length;
+  return `<div class="aipick" id="aiPick">
+    <div class="aph"><b>🤖 AI พบตำรับยาและวิธีรักษา ${P.length} รายการ</b><span class="help">ติ๊กว่าแต่ละรายการเป็นประเภทไหน แล้วกดนำเข้า รายการจะไปอยู่ในกล่องที่เลือก</span></div>
+    ${P.map((x, i) => `<div class="apr"><div class="apt"><b>${i + 1}. ${esc(x.recipe.name || "(ไม่มีชื่อ)")}</b><small>${esc([x.recipe.properties, x.recipe.symptoms].filter(Boolean).join(" · ").slice(0, 120))}</small></div>
+      <div class="apo" role="radiogroup" aria-label="ประเภทของ ${esc(x.recipe.name || "รายการ " + (i + 1))}">${RCATS.map(([k, l]) => `<label class="${x.cat === k ? "on" : ""}"><input type="radio" name="ai-${x.id}" data-aicat="${x.id}" value="${k}"${x.cat === k ? " checked" : ""}> ${CATICON[k]} ${l}${x.sug === k ? `<em>AI แนะนำ</em>` : ""}</label>`).join("")}<label class="${x.cat === "skip" ? "on skip" : "skip"}"><input type="radio" name="ai-${x.id}" data-aicat="${x.id}" value="skip"${x.cat === "skip" ? " checked" : ""}> ไม่นำเข้า</label></div></div>`).join("")}
+    <div class="apa"><button class="btn primary" type="button" data-aiact="import"${ready ? "" : " disabled"}>นำเข้ากล่อง ${ready} รายการ</button><button class="btn" type="button" data-aiact="discard">ยกเลิกทั้งหมด</button></div>
+  </div>`;
+}
+function importAiItems(n) {
+  let added = 0, merged = 0;
+  const same = (a, b) => a && b && squash(a) === squash(b);
+  for (const x of n.aiItems) {
+    if (!RCL[x.cat]) continue;
+    const hit = same(n.recipe.name, x.recipe.name) ? { recipe: n.recipe, main: true } : n.extra.find(y => same(y.recipe.name, x.recipe.name));
+    if (hit) { for (const [k] of NRF) if (x.recipe[k] && !String(hit.recipe[k] || "").trim()) hit.recipe[k] = x.recipe[k]; if (hit.main) { n.cat = x.cat; n.mainOn = true; } else hit.cat = x.cat; merged++; continue; }
+    if (mainEmpty(n) && !n.mainOn) { n.recipe = { ...blankRecipe(), ...x.recipe }; n.cat = x.cat; n.methods = DEFMETH[x.cat].slice(); n.mainOn = true; }
+    else n.extra.push({ id: x.id, cat: x.cat, methods: DEFMETH[x.cat].slice(), recipe: { ...blankRecipe(), ...x.recipe }, vis: { ...DEFVIS }, media: blankMedia(), pubId: "" });
+    added++;
+  }
+  n.aiItems = [];
+  if (reviewing(n)) flagReconfirm(n, "นำเข้ารายการจาก AI ระหว่างตรวจทาน ต้องให้หมอยืนยันอีกครั้ง");
+  nlog(n, `นำเข้ารายการที่ AI แยกจากเอกสาร ${added} รายการ${merged ? ` เติมรายการเดิม ${merged} รายการ` : ""}`);
+  return added + merged;
 }
 function rerenderItems(n) { const box = $("#itemsBox"); if (box) box.outerHTML = recipeFieldsHtml(n, nlocked(n) ? " disabled" : ""); refreshLive(); }
 function mbField([k, l, t], n, dis) {
@@ -2796,7 +2855,8 @@ async function demoScan(n) {
   setAiStat(`AI กำลังอ่านเอกสาร ${n.photos.length} ไฟล์ อาจใช้เวลาประมาณหนึ่งนาที`); await wait(2600);
   let filled = 0, sorted = 0;
   const put = (obj, src) => { for (const [k, v] of Object.entries(src || {})) if (String(obj[k] ?? "") !== String(v)) { obj[k] = v; filled++; } };
-  put(n.healer, d.healer); put(n.mb, d.mb); put(n.recipe, d.recipe);
+  put(n.healer, d.healer); put(n.mb, d.mb);
+  const found = aiPending(arr(d.items).length ? d.items : d.recipe ? [d.recipe] : []); if (found.length) n.aiItems = found;
   if (d.consent) Object.assign(n.consent, d.consent);
   if (d.methods) { n.methods = d.methods.slice(); n.healer.methods = d.methods.slice(); }
   n.healer.name = fullName(n.healer);
@@ -2818,7 +2878,7 @@ async function demoScan(n) {
     const c = /รับรอง|cert/.test(nm) ? "cert" : /ยินยอม|consent/.test(nm) ? "consent" : /มบ|ม\.บ|mb/.test(nm) ? "mb11" : ["mb11", "cert", "consent"].find(x => !used.has(x)) || "other";
     p.doc = c; used.add(c); sorted++;
   }
-  S.aiMsg = `✓ AI กรอกให้แล้ว ${filled} ช่อง${sorted ? ` แยกประเภทไฟล์ ${sorted} ไฟล์` : ""}${parts ? ` และแยก PDF ออกเป็น ${parts} ไฟล์ตามเอกสาร` : ""} ตรวจกับต้นฉบับอีกครั้งก่อนบันทึกเข้าคลัง`;
+  S.aiMsg = `✓ AI กรอกให้แล้ว ${filled} ช่อง${found.length ? ` พบตำรับยา/หัตถการ ${found.length} รายการ รอติ๊กประเภทในหัวข้อ 4` : ""}${sorted ? ` แยกประเภทไฟล์ ${sorted} ไฟล์` : ""}${parts ? ` และแยก PDF ออกเป็น ${parts} ไฟล์ตามเอกสาร` : ""} ตรวจกับต้นฉบับอีกครั้งก่อนบันทึกเข้าคลัง`;
   nlog(n, `AI อ่านเอกสาร เติม ${filled} ช่อง แยกประเภท ${sorted} ไฟล์${parts ? ` แยก PDF เป็น ${parts} ไฟล์` : ""} (ข้อมูลสาธิต)`);
   S.aiBusy = false; scheduleSave(); if (S.draft === n) renderNote();
 }
@@ -2854,7 +2914,7 @@ async function aiScan() {
     const prompt = `เอกสารต่อไปนี้เป็นของหมอพื้นบ้านที่ได้รับการรับรองแล้ว (แบบ ม.บ.1-1 หนังสือรับรองการเป็นหมอพื้นบ้าน หนังสือยินยอม และเอกสารอื่น) อาจเป็นภาพถ่าย ภาพหน้า PDF หรือข้อความจากไฟล์ Word อ่านแล้วตอบเป็น JSON object เท่านั้น ไม่มีข้อความอื่น
 ไฟล์ทั้งหมด: ${n.photos.map((p, i) => `ไฟล์ ${i + 1} = ${p.name || "ภาพถ่าย"}`).join(" · ")}
 ${map.length ? "ลำดับภาพ: " + map.join(" · ") : ""}
-โครงสร้าง: {"healer": {${HK.map(k => `"${k}": ""`).join(", ")}}, "mb": {${MK.map(k => `"${k}": ""`).join(", ")}}, "recipe": {${NRF.map(([k]) => `"${k}": ""`).join(", ")}}, "files": [{"i": 1, "doc": "mb11"}], "pages": [{"i": 1, "p": 1, "doc": "mb11"}]}
+โครงสร้าง: {"healer": {${HK.map(k => `"${k}": ""`).join(", ")}}, "mb": {${MK.map(k => `"${k}": ""`).join(", ")}}, "items": [{"cat": "drug", ${NRF.map(([k]) => `"${k}": ""`).join(", ")}}], "files": [{"i": 1, "doc": "mb11"}], "pages": [{"i": 1, "p": 1, "doc": "mb11"}]}
 กติกา:
 - คัดลอกตามที่เขียนในเอกสารเท่านั้น ห้ามเดาหรือเติม ช่องที่ว่างหรืออ่านไม่ออกให้ใส่ ""
 - personName = ชื่อและนามสกุลของหมอ (ไม่รวมคำนำหน้า) prefix = คำนำหน้า
@@ -2863,7 +2923,8 @@ ${map.length ? "ลำดับภาพ: " + map.join(" · ") : ""}
 - licenseNo = เลขที่หนังสือรับรอง, licenseIssued และ licenseExpiry เป็น YYYY-MM-DD แบบ ค.ศ. (แปลง พ.ศ. ลบ 543), proposer = หน่วยงานที่เสนอรายชื่อ (ถ้ามี)
 - learnYear และ treatYear คงเป็นปี พ.ศ.
 - years = จำนวนปีที่เป็นหมอพื้นบ้าน เป็นตัวเลข
-- recipe คือ ตำรับ ตำรายา ในข้อ 2.2 ถ้ามีหลายตำรับให้ใช้ตำรับแรก
+- items คือ ตำรับยาและวิธีการรักษาในข้อ 2.2 ทุกรายการ แยกเป็นรายการละ 1 object ถ้าไม่มีให้ใส่ []
+- cat ของแต่ละรายการ: drug = ตำรับยา ยาสมุนไพร ยาหม่อง น้ำมัน ลูกประคบ, proc = หัตถการ เช่น นวด กดจุด ตอกเส้น ย่ำขาง จัดกระดูก, other = อื่น ๆ เช่น พิธีกรรม การวินิจฉัย ผลิตภัณฑ์อื่น
 - files: บอกว่าไฟล์แต่ละไฟล์ (เลข i ตามรายการไฟล์ทั้งหมด) คือเอกสารอะไร ใช้ค่า mb11 = แบบ ม.บ.1-1, cert = หนังสือรับรองการเป็นหมอพื้นบ้าน, consent = หนังสือยินยอมให้เผยแพร่, other = อื่น ๆ
 - pages: สำหรับไฟล์ PDF หลายหน้า${multi.length ? ` (ไฟล์ ${multi.join(", ")})` : ""} บอกประเภทเอกสารของทุกหน้าที่เห็น (i = เลขไฟล์, p = เลขหน้า) ใช้ค่าเดียวกับ files ถ้าทั้งไฟล์เป็นเอกสารเดียวกันก็ใส่ทุกหน้าเป็นค่าเดียวกัน
 ${texts.length ? "\nข้อความจากไฟล์:\n" + texts.join("\n\n") : ""}`;
@@ -2875,15 +2936,16 @@ ${texts.length ? "\nข้อความจากไฟล์:\n" + texts.join(
     for (const k of MB_KEYS) put(n.mb, k, r?.mb?.[k]);
     { const ts = typesOf(n.healer.healerType); n.healer.healerType = [...HTYPES.filter(x => ts.official.includes(x))].join(", "); }
     for (const k of ["licenseIssued", "licenseExpiry"]) if (n.healer[k] && !/^\d{4}-\d{2}-\d{2}$/.test(n.healer[k])) n.healer[k] = "";
-    for (const [k] of NRF) put(n.recipe, k, r?.recipe?.[k]);
+    const found = aiPending(arr(r?.items).length ? r.items : r?.recipe ? [r.recipe] : []);
+    if (found.length) { n.aiItems = found; filled += 0; }
     for (const f of arr(r?.files)) { const p = n.photos[Number(f?.i) - 1]; if (p && !CATL[p.doc] && CATL[f?.doc]) { p.doc = f.doc; sorted++; if (n.docs[f.doc] === false) n.docs[f.doc] = true; } }
     let parts = 0;
     const pmap = {}; for (const x of arr(r?.pages)) { const i = Number(x?.i) - 1, pg = Number(x?.p); if (n.photos[i] && kindOf(n.photos[i]) === "pdf" && pg > 0 && CATL[x?.doc]) (pmap[i] ||= {})[pg] = x.doc; }
     for (const [i, m] of Object.entries(pmap)) { try { setAiStat(`กำลังแยกไฟล์ “${n.photos[+i].name}” ตามเอกสาร…`); parts += await splitPdfFile(n, +i, m); } catch (e) { skipped.push(n.photos[+i].name + " (แยกหน้าไม่ได้)"); } }
     if (!PREFIXES.includes(n.healer.prefix)) n.healer.prefix = "";
     n.healer.name = fullName(n.healer);
-    S.aiMsg = (filled || sorted || parts ? `✓ AI กรอกให้แล้ว ${filled} ช่อง${sorted ? ` แยกประเภทไฟล์ ${sorted} ไฟล์` : ""}${parts ? ` และแยก PDF ออกเป็น ${parts} ไฟล์ตามเอกสาร` : ""} ตรวจกับต้นฉบับอีกครั้งก่อนบันทึกเข้าคลัง` : "AI ไม่พบข้อมูลใหม่ที่จะเติม") + (skipped.length ? ` · อ่านไม่ได้: ${skipped.join(", ")}` : "");
-    if (filled || sorted) { nlog(n, `AI อ่านเอกสาร ${n.photos.length} ไฟล์ เติม ${filled} ช่อง แยกประเภท ${sorted} ไฟล์`); scheduleSave(); }
+    S.aiMsg = (filled || sorted || parts || found.length ? `✓ AI กรอกให้แล้ว ${filled} ช่อง${found.length ? ` พบตำรับยา/หัตถการ ${found.length} รายการ รอติ๊กประเภทในหัวข้อ 4` : ""}${sorted ? ` แยกประเภทไฟล์ ${sorted} ไฟล์` : ""}${parts ? ` และแยก PDF ออกเป็น ${parts} ไฟล์ตามเอกสาร` : ""} ตรวจกับต้นฉบับอีกครั้งก่อนบันทึกเข้าคลัง` : "AI ไม่พบข้อมูลใหม่ที่จะเติม") + (skipped.length ? ` · อ่านไม่ได้: ${skipped.join(", ")}` : "");
+    if (filled || sorted || found.length) { nlog(n, `AI อ่านเอกสาร ${n.photos.length} ไฟล์ เติม ${filled} ช่อง แยกประเภท ${sorted} ไฟล์${found.length ? ` พบ ${found.length} รายการรอเลือกประเภท` : ""}`); scheduleSave(); }
   } catch (err) { S.aiMsg = err?.code === "nothing" ? "ไม่มีไฟล์ที่ AI อ่านได้ ใช้รูป PDF หรือ Word (.docx)" : AI_ERR[err?.code] || "AI อ่านเอกสารไม่สำเร็จ ลองอีกครั้ง หรือคีย์เอง"; if (err?.code === "not_granted") sampleFn = null; }
   S.aiBusy = false; if (S.draft === n) renderNote();
 }
@@ -3114,7 +3176,8 @@ async function aiStructure() {
   const n = S.draft; if (!n || !sampleFn) return;
   if (!n.transcript.trim()) { toast("ใส่คำบอกเล่าในหัวข้อ 3 ก่อน"); return; }
   S.aiBusy = true; S.aiMsg = "กำลังอ่านคำบอกเล่า อาจใช้เวลาประมาณครึ่งนาที"; renderNote();
-  const prompt = `คุณช่วยนักวิจัยภาคสนามด้านการแพทย์พื้นบ้านไทย อ่านคำบอกเล่าของหมอพื้นบ้านด้านล่าง แล้วจัดข้อมูลลงช่อง ตอบเป็น JSON object เท่านั้น มีคีย์: name, symptoms, ingredients, preparation, usage, properties, caution (ค่าทุกตัวเป็นข้อความภาษาไทย)
+  const prompt = `คุณช่วยนักวิจัยภาคสนามด้านการแพทย์พื้นบ้านไทย อ่านคำบอกเล่าของหมอพื้นบ้านด้านล่าง แล้วแยกตำรับยาและวิธีรักษาทุกรายการที่หมอเล่า ตอบเป็น JSON object เท่านั้น รูปแบบ {"items": [{"cat": "", "name": "", "symptoms": "", "ingredients": "", "preparation": "", "usage": "", "properties": "", "caution": ""}]} (ค่าทุกตัวเป็นข้อความภาษาไทย รายการละ 1 object)
+- cat: drug = ตำรับยา ยาสมุนไพร, proc = หัตถการ เช่น นวด กดจุด ตอกเส้น ย่ำขาง จัดกระดูก, other = อื่น ๆ เช่น พิธีกรรม การวินิจฉัย
 กติกา:
 - ใช้เฉพาะสิ่งที่หมอพูดจริงในคำบอกเล่า ห้ามเติมความรู้ ปริมาณ หรือสรรพคุณที่หมอไม่ได้พูด ถ้าไม่มีข้อมูลให้ใส่ ""
 - ingredients: บรรทัดละหนึ่งรายการ รูปแบบ "ชื่อที่หมอเรียก · ส่วนที่ใช้ · ปริมาณ" ส่วนที่ไม่รู้ให้เว้น
@@ -3130,10 +3193,10 @@ ${n.transcript}
 """`;
   try {
     const r = await sampleFn.json(prompt, { modelTier: "default" });
-    let filled = 0;
-    for (const [k] of NRF) { const v = typeof r?.[k] === "string" ? r[k].trim() : ""; if (v && !n.recipe[k].trim()) { n.recipe[k] = v; filled++; } }
-    S.aiMsg = filled ? `เติมแล้ว ${filled} ช่อง ตรวจกับเสียงต้นฉบับอีกครั้งก่อนส่งตรวจทาน` : "ไม่มีช่องว่างให้เติม หรือคำบอกเล่ายังไม่มีข้อมูลตำรับ";
-    if (filled) { if (reviewing(n)) flagReconfirm(n, "AI เติมช่องตำรับระหว่างตรวจทาน ต้องให้หมอยืนยันอีกครั้ง"); nlog(n, `AI จัดคำบอกเล่าลงช่องตำรับ ${filled} ช่อง`); scheduleSave(); }
+    const found = aiPending(arr(r?.items).length ? r.items : r && typeof r === "object" && !Array.isArray(r) && r.name !== undefined ? [r] : Array.isArray(r) ? r : []);
+    if (found.length) n.aiItems = found;
+    S.aiMsg = found.length ? `AI พบ ${found.length} รายการ ติ๊กประเภทในหัวข้อ 4 แล้วกดนำเข้า ตรวจกับเสียงต้นฉบับอีกครั้ง` : "คำบอกเล่ายังไม่มีข้อมูลตำรับหรือวิธีรักษา";
+    if (found.length) { nlog(n, `AI แยกคำบอกเล่าได้ ${found.length} รายการ รอเลือกประเภท`); scheduleSave(); }
   } catch (err) { S.aiMsg = AI_ERR[err?.code] || "AI ช่วยไม่สำเร็จ ลองอีกครั้ง"; if (err?.code === "not_granted") sampleFn = null; }
   S.aiBusy = false; if (S.draft === n) renderNote();
 }
