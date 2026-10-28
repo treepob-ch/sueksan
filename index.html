@@ -2896,7 +2896,7 @@ async function aiScan() {
     for (const [i, p] of n.photos.entries()) {
       const k = kindOf(p);
       try {
-        if (p.text && !p.asset && !p.src) { texts.push(`--- ไฟล์ ${i + 1} (${p.name}) ---\n${p.text.slice(0, 15000)}`); continue; }
+        if (!p.asset && !p.src && !memFiles.has(p.tmp) && p.text?.trim()) { texts.push(`--- ไฟล์ ${i + 1} (${p.name}) ---\n${p.text.slice(0, 15000)}`); continue; }
         const blob = await fileBlob(p); if (!blob) { skipped.push(p.name); continue; }
         if (k === "image") { if (sampleImages && images.length < MAXI) { images.push(blob); map.push(`ภาพที่ ${images.length} = ไฟล์ ${i + 1}`); } }
         else if (k === "pdf") {
