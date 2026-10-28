@@ -140,6 +140,19 @@ button { font: inherit; cursor: pointer; }
 .pmore > summary::-webkit-details-marker { display: none; }
 .pmore[open] .o, .pmore:not([open]) .c { display: none; }
 .pmore .body { padding: 10px 0 0; }
+.catbox { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; background: var(--surface); border-left: 6px solid var(--cb, var(--line)); }
+.catbox.c-drug { --cb: var(--leaf); } .catbox.c-proc { --cb: var(--turmeric); } .catbox.c-other { --cb: var(--indigo); }
+#itemsBox { display: grid; gap: 14px; }
+.catbox .cbh { display: grid; gap: 2px; }
+.catbox h4 { margin: 0; font-size: 17px; display: flex; gap: 8px; align-items: baseline; }
+.catbox h4 small { font-weight: 400; font-size: 13px; color: var(--muted); }
+.catbox .none { margin: 0; color: var(--muted); font-size: 14px; }
+.catbox .btn.add { justify-self: start; }
+.item { border: 1px dashed var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; background: var(--bg); }
+.item .ih { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.item .ia { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.item .mv { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.item .mv select { width: auto; padding: 4px 8px; }
 .catnav { display: flex; flex-wrap: wrap; gap: 8px; }
 .catnav button { font: inherit; cursor: pointer;  text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 14.5px; }
 .catnav button b { color: var(--leaf); margin-left: 4px; }
@@ -590,7 +603,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
     <div id="dirKpi" aria-live="polite"></div>
     <div class="search" role="search">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="dq" type="text" placeholder="ค้นหาหมอ: ชื่อ ประเภทหมอ รางวัล หัตถการ สถานที่" autocomplete="off" aria-label="ค้นหาหมอพื้นบ้าน">
+      <input id="dq" type="text" placeholder="ค้นหาหมอ: ชื่อ ประเภทหมอ รางวัล กรรมวิธี สถานที่" autocomplete="off" aria-label="ค้นหาหมอพื้นบ้าน">
       <button class="clear" id="clearDq" type="button" hidden>ล้าง</button>
     </div>
     <div class="fbar" id="dirFilters" role="group" aria-label="ตัวกรองทำเนียบ">
@@ -599,7 +612,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
       <label for="fDist">อำเภอ<select id="fDist" data-f="dist"></select></label>
       <label for="fSub">ตำบล<select id="fSub" data-f="sub"></select></label>
       <label for="fAward">รางวัล / ตำแหน่ง<select id="fAward" data-f="award"></select></label>
-      <label for="fMeth">หมวดภูมิปัญญา<select id="fMeth" data-f="meth"></select></label>
+      <label for="fMeth">กรรมวิธี<select id="fMeth" data-f="meth"></select></label>
       <button class="btn" type="button" id="fClear" data-act="clearFilters" hidden>ล้างตัวกรอง</button>
     </div>
     <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
@@ -978,9 +991,9 @@ const mbStr = b => b ? " · " + (b / 1048576).toFixed(1) + " MB" : "";
 const blankMedia = () => ({ videoUrl: "", video: null, chartUrl: "", chart: null });
 const mediaOf = o => ({ ...blankMedia(), videoUrl: o?.videoUrl || "", video: o?.video || null, chartUrl: o?.chartUrl || "", chart: o?.chart || null });
 const hasMedia = it => !!(it?.video?.asset || okUrl(it?.videoUrl) || it?.chart || okUrl(it?.chartUrl));
-function pmHtml(m, dis) {
+function pmHtml(m, dis, item = "") {
   const row = (w, label, accept, help) => { const e = m[w]; return `<div class="pmrow"><span class="pml">${label}</span>${e ? `<span class="pmf">${w === "video" ? "🎬" : "🗺️"} ${esc(e.name || "ไฟล์")}${mbStr(e.size)}</span>${dis ? "" : `<button class="btn" type="button" data-pmdel="${w}">ลบไฟล์</button>`}` : ""}${dis ? "" : `<span class="btn filebtn">${e ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" data-pmin="${w}" accept="${accept}" aria-label="${label}"></span>`}<span class="help">${help}</span></div>`; };
-  return `<fieldset class="pm wide"><legend>สื่อประกอบหัตถการ</legend>
+  return `<fieldset class="pm wide"${item ? ` data-pmitem="${esc(item)}"` : ""}><legend>สื่อประกอบหัตถการ</legend>
     <label>ลิงก์วิดีโอสาธิต (YouTube, Google Drive, Facebook ฯลฯ)<input type="url" data-pmk="videoUrl" value="${esc(m.videoUrl || "")}" placeholder="https://"${dis}></label>
     ${assets ? row("video", "หรืออัปโหลดคลิป", "video/*", "MP4 ไม่เกิน 20 MB · คลิปยาวให้ใส่เป็นลิงก์") : `<p class="help">โหมดนี้อัปโหลดคลิปไม่ได้ ใส่วิดีโอเป็นลิงก์แทน</p>`}
     ${row("chart", "ไฟล์แผนนวด", "image/*,application/pdf", "ภาพหรือ PDF เช่น แผนภาพจุดนวด แนวเส้น ลำดับท่า")}
@@ -1344,11 +1357,9 @@ function dirOK(h, skip) {
   if (skip !== "award" && S.f.award !== "all") {
     if (S.f.award === "__lic" ? !h.licenseNo : S.f.award === "__any" ? !h.award : h.award !== S.f.award) return false;
   }
-  if (skip !== "meth" && S.f.meth !== "all" && !(S.f.meth === "vid" ? S.recipes.some(r => r.healerId === h.id && (r.video?.asset || okUrl(r.videoUrl))) : hcats(h).has(S.f.meth))) return false;
+  if (skip !== "meth" && S.f.meth !== "all" && !arr(h.methods).includes(S.f.meth)) return false;
   return true;
 }
-// หมวดที่หมอมีข้อมูล: นับจากตำรับยา / หัตถการ / อื่น ๆ ของหมอ ให้ตรงกับแท็บในหน้าหมอ
-const hcats = h => new Set(S.recipes.filter(r => r.healerId === h.id).map(recCat));
 function renderDirFilters() {
   const opt = (v, l, n) => `<option value="${esc(v)}"${n === 0 ? " disabled" : ""}>${esc(l)}${n != null ? ` (${n})` : ""}</option>`;
   const count = (skip, pred) => S.healers.filter(h => dirOK(h, skip) && pred(h)).length;
@@ -1362,8 +1373,7 @@ function renderDirFilters() {
   set("#fDist", opt("all", dists.length ? "ทุกอำเภอ" : "ยังไม่มีข้อมูลอำเภอ") + dists.map(d => opt(d, d, count("dist", h => distName(h.district) === d))).join(""), S.f.dist);
   set("#fSub", opt("all", subs.length ? "ทุกตำบล" : "ยังไม่มีข้อมูลตำบล") + subs.map(d => opt(d, d, count("sub", h => subName(h.subdistrict) === d))).join(""), S.f.sub);
   set("#fAward", opt("all", "ทั้งหมด") + opt("__lic", "มีใบประจำตัวหมอพื้นบ้าน", count("award", h => !!h.licenseNo)) + opt("__any", "มีรางวัลหรือตำแหน่ง", count("award", h => !!h.award)) + awards.map(a => opt(a, a, count("award", h => h.award === a))).join(""), S.f.award);
-  if (S.f.meth !== "all" && S.f.meth !== "vid" && !RCL[S.f.meth]) S.f.meth = "all";
-  set("#fMeth", opt("all", "ทุกหมวด") + RCATS.map(([k, l]) => opt(k, "มี" + l, count("meth", h => hcats(h).has(k)))).join("") + opt("vid", "มีวิดีโอสาธิต", count("meth", h => S.recipes.some(r => r.healerId === h.id && (r.video?.asset || okUrl(r.videoUrl))))), S.f.meth);
+  set("#fMeth", opt("all", "ทุกกรรมวิธี") + METHODS.map(([k, l]) => opt(k, l, count("meth", h => arr(h.methods).includes(k)))).join(""), S.f.meth);
   const tc = t => count("type", h => htypesOf(h).includes(t));
   set("#fType", opt("all", "ทุกประเภท") + HTYPES.map(t => opt(t, t, tc(t))).join(""), S.f.type);
   $("#fClear").hidden = S.prov === "all" && Object.values(S.f).every(v => v === "all");
@@ -1375,25 +1385,24 @@ function filterLabel() {
   if (S.f.dist !== "all") parts.push("อ." + S.f.dist);
   if (S.f.sub !== "all") parts.push("ต." + S.f.sub);
   if (S.f.award !== "all") parts.push(S.f.award === "__lic" ? "มีใบประจำตัว" : S.f.award === "__any" ? "มีรางวัล/ตำแหน่ง" : S.f.award);
-  if (S.f.meth !== "all") parts.push(S.f.meth === "vid" ? "มีวิดีโอสาธิต" : "มี" + RCL[S.f.meth]);
+  if (S.f.meth !== "all") parts.push(ML[S.f.meth]);
   return parts.length ? " · " + parts.join(" · ") : "";
 }
 // ภาพรวมคลังภูมิปัญญา: summary cards above the directory search, following the current filters
 function renderKpi(list, filtered) {
   const el = $("#dirKpi"); if (!el) return;
   const ids = new Set(list.map(h => h.id));
-  const recs = S.recipes.filter(r => ids.has(r.healerId) && (!RCL[S.f.meth] || recCat(r) === S.f.meth)), nRec = recs.length;
-  const recSub = RCATS.map(([k, l]) => `${l === "ตำรับยา" ? "ยา" : l} ${recs.filter(r => recCat(r) === k).length}`).join(" · ");
+  const nRec = S.recipes.filter(r => ids.has(r.healerId)).length;
   const nProv = new Set(list.map(h => provName(h.province)).filter(Boolean)).size;
   const nLic = list.filter(h => h.licenseNo).length;
   const card = (c, label, n, sub) => `<div class="kpi" style="--c:${c}"><span>${label}</span><b>${n}</b><small>${sub}</small></div>`;
   el.innerHTML = `<div class="kpihead"><h2>ภาพรวมคลังภูมิปัญญา${filtered ? " · ตามตัวกรอง" : ""}</h2>${S.healers.some(h => h.sample) ? "<em>ข้อมูลสาธิต</em>" : ""}</div>
-    <div class="kpis">${card("var(--indigo)", "หมอพื้นบ้าน", list.length, filtered ? `จาก ${S.healers.length} ท่านในทำเนียบ` : "ที่ยินยอมให้เผยแพร่")}${card("var(--turmeric)", RCL[S.f.meth] || "ตำรับยาและหัตถการ", nRec, RCL[S.f.meth] ? "จากหมอในรายชื่อ" : recSub)}${card("var(--leaf)", "จังหวัด", nProv, "ที่มีหมอในรายชื่อ")}${card("#7a4f9a", "มีใบประจำตัวหมอ", nLic, `จาก ${list.length} ท่าน`)}</div>`;
+    <div class="kpis">${card("var(--indigo)", "หมอพื้นบ้าน", list.length, filtered ? `จาก ${S.healers.length} ท่านในทำเนียบ` : "ที่ยินยอมให้เผยแพร่")}${card("var(--turmeric)", "ตำรับยาและวิธีรักษา", nRec, "จากหมอในรายชื่อ")}${card("var(--leaf)", "จังหวัด", nProv, "ที่มีหมอในรายชื่อ")}${card("#7a4f9a", "มีใบประจำตัวหมอ", nLic, `จาก ${list.length} ท่าน`)}</div>`;
 }
 function renderDir() {
   if (S.ready < 3) return;
   const terms = norm(S.dq).split(/\s+/).filter(Boolean);
-  const hay = h => squash([h.name, h.province, h.district, h.subdistrict, h.servicePlace, h.healerType, h.award, h.licenseNo, h.proposer, arr(h.methods).map(m => ML[m]).join(" "), "การ" + arr(h.methods).map(m => ML[m]).join(" "), [...hcats(h)].map(k => RCL[k]).join(" ")].join(" "));
+  const hay = h => squash([h.name, h.province, h.district, h.subdistrict, h.servicePlace, h.healerType, h.award, h.licenseNo, h.proposer, arr(h.methods).map(m => ML[m]).join(" "), "การ" + arr(h.methods).map(m => ML[m]).join(" ")].join(" "));
   renderDirFilters();
   const list = S.healers.filter(h => dirOK(h) && terms.every(t => hay(h).includes(squash(t))));
   renderKpi(list, terms.length || S.prov !== "all" || Object.values(S.f).some(v => v !== "all"));
@@ -1627,7 +1636,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.sym) { const v = t.dataset.sym; S.syms = S.syms.includes(v) ? S.syms.filter(x => x !== v) : [...S.syms, v]; render(); return; }
   if (t.dataset.m) { if (!t.disabled) { S.method = t.dataset.m; render(); } return; }
   const a = t.dataset.act, id = t.dataset.id;
-  if (a === "openHealer") { e.preventDefault(); if (S.noteId) await leaveNote(); S.tab = "dir"; S.healer = id; S.hcat = RCL[S.f.meth] ? S.f.meth : "all"; S.del = null; render(); window.scrollTo({ top: 0 }); }
+  if (a === "openHealer") { e.preventDefault(); if (S.noteId) await leaveNote(); S.tab = "dir"; S.healer = id; S.hcat = "all"; S.del = null; render(); window.scrollTo({ top: 0 }); }
   if (a === "back") { S.healer = null; render(); }
   if (a === "editHealer") openForm("healers", hById(id));
   if (a === "addRecipe") openForm("recipes", { healerId: id, methods: arr(hById(id)?.methods), evidence: "folk" });
@@ -1654,12 +1663,39 @@ document.addEventListener("click", async e => {
 });
 $("#addHealer").addEventListener("click", openChooser);
 let FM = null; // media being edited in the ตำรับ form
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-additem],[data-askdel],[data-delitem],[data-xvis]"); if (!t) return;
+  const n = S.draft; if (!n || nlocked(n)) return;
+  if (t.dataset.xvis) {
+    const [id, f] = t.dataset.xvis.split("."), x = n.extra.find(y => y.id === id); if (!x) return;
+    if (t.dataset.v === "public" && x.vis[f] !== "public") flagReconfirm(n, "เปลี่ยนช่องเป็นเปิดเผย ต้องให้หมอยืนยันอีกครั้ง");
+    x.vis[f] = t.dataset.v; n.updatedAt = Date.now(); scheduleSave();
+    t.parentElement.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === t)); refreshLive(); return;
+  }
+  if (t.dataset.additem) {
+    const k = t.dataset.additem; let ref;
+    if (mainEmpty(n) && !n.mainOn) { n.mainOn = true; n.cat = k; n.methods = DEFMETH[k].slice(); ref = "main"; }
+    else { ref = Math.random().toString(36).slice(2, 10); n.extra.push({ id: ref, cat: k, methods: DEFMETH[k].slice(), recipe: blankRecipe(), vis: { ...DEFVIS }, media: blankMedia(), pubId: "" }); }
+    S.delItem = null; n.updatedAt = Date.now(); scheduleSave(); rerenderItems(n);
+    document.querySelector(`.item[data-item="${ref}"] input[type=text]`)?.focus(); return;
+  }
+  if (t.dataset.askdel !== undefined) { S.delItem = t.dataset.askdel; rerenderItems(n); return; }
+  if (t.dataset.delitem !== undefined) {
+    const id = t.dataset.delitem; S.delItem = null;
+    if (id === "main") { n.recipe = blankRecipe(); n.media = blankMedia(); n.cat = ""; n.mainOn = false; n.vis = { ...DEFVIS }; }
+    else if (id) { const x = n.extra.find(y => y.id === id); if (x?.pubId) n.orphans = [...arr(n.orphans), x.pubId]; n.extra = n.extra.filter(y => y.id !== id); }
+    if (id) { n.updatedAt = Date.now(); scheduleSave(); toast("ลบรายการแล้ว"); }
+    rerenderItems(n);
+  }
+});
 function pmTarget(el) {
   if (el.closest("#editor")) return FM;
   const n = S.draft; if (!n || nlocked(n)) return null;
-  return { m: n.media, after() { n.updatedAt = Date.now(); scheduleSave(); refreshLive(); } };
+  const item = el.closest("fieldset.pm")?.dataset.pmitem || "main", x = item === "main" ? null : n.extra.find(y => y.id === item);
+  if (item !== "main" && !x) return null;
+  return { m: x ? x.media : n.media, item, after() { n.updatedAt = Date.now(); scheduleSave(); refreshLive(); } };
 }
-function pmRefresh(el, t) { const fs = el.closest("fieldset.pm"); if (fs) fs.outerHTML = pmHtml(t.m, ""); }
+function pmRefresh(el, t) { const fs = el.closest("fieldset.pm"); if (fs) fs.outerHTML = pmHtml(t.m, "", t.item || ""); }
 document.addEventListener("input", e => { const el = e.target; if (!el.dataset?.pmk) return; const t = pmTarget(el); if (!t) return; t.m[el.dataset.pmk] = el.value.trim(); t.after(); });
 document.addEventListener("change", async e => {
   const el = e.target; if (!el.dataset?.pmin) return; const t = pmTarget(el), f = el.files?.[0]; if (!t || !f) return;
@@ -1889,7 +1925,7 @@ function blankNote(id, h) {
     healerId: h?.id || "",
     healer: profileOf(h), origin: "request", docRecipes: [], archived: null, mb: blankMb(), docs: blankDocs(), qual: blankQual(), fix: null, fixLog: [],
     transcript: "", audio: [], photos: [], methods: arr(h?.methods).length ? arr(h.methods) : ["herb"],
-    recipe: { name: "", symptoms: "", ingredients: "", preparation: "", usage: "", properties: "", caution: "" }, cat: "", media: blankMedia(),
+    recipe: { name: "", symptoms: "", ingredients: "", preparation: "", usage: "", properties: "", caution: "" }, cat: "", media: blankMedia(), extra: [], mainOn: false,
     vis: { ...DEFVIS }, review: { by: "", note: "", assignedTo: provName(h?.province), checks: { plant: false, caution: false, transcript: false } },
     consent: { method: "none", by: "", witness: "", date: "", interview: false, publish: false, location: false, photo: false, research: false, commercial: false },
     needReconfirm: false, hash: "", hashAt: 0, publishedHealerId: "", publishedRecipeId: "", submittedBy: "", approval: null,
@@ -1903,7 +1939,7 @@ function normalize(n) {
   if (!healer.personName) healer.personName = personOf(healer);
   if (!healer.prefix && healer.name) healer.prefix = splitName(healer.name).prefix;
   delete healer.type;
-  return { ...b, ...n, healer, status: ["ready", "review", "approval", "rejected", "lapsed"].includes(n.status) ? "draft" : SL[n.status] === undefined ? "draft" : n.status, recipe: { ...b.recipe, ...n.recipe }, cat: RCL[n.cat] ? n.cat : "", media: { ...b.media, ...n.media }, vis: { ...b.vis, ...n.vis }, review: { ...b.review, ...n.review }, consent: { ...b.consent, ...n.consent }, mb: { ...b.mb, ...n.mb }, docs: { ...b.docs, ...n.docs }, qual: { ...b.qual, ...n.qual }, fixLog: arr(n.fixLog), audio: arr(n.audio), photos: arr(n.photos), methods: arr(n.methods), history: arr(n.history) };
+  return { ...b, ...n, healer, status: ["ready", "review", "approval", "rejected", "lapsed"].includes(n.status) ? "draft" : SL[n.status] === undefined ? "draft" : n.status, recipe: { ...b.recipe, ...n.recipe }, cat: RCL[n.cat] ? n.cat : "", media: { ...b.media, ...n.media }, extra: arr(n.extra).map(x => ({ id: x.id || Math.random().toString(36).slice(2, 10), cat: RCL[x.cat] ? x.cat : "drug", methods: arr(x.methods), recipe: { ...blankRecipe(), ...x.recipe }, vis: { ...DEFVIS, ...x.vis }, media: { ...blankMedia(), ...x.media }, pubId: x.pubId || "" })), orphans: arr(n.orphans), vis: { ...b.vis, ...n.vis }, review: { ...b.review, ...n.review }, consent: { ...b.consent, ...n.consent }, mb: { ...b.mb, ...n.mb }, docs: { ...b.docs, ...n.docs }, qual: { ...b.qual, ...n.qual }, fixLog: arr(n.fixLog), audio: arr(n.audio), photos: arr(n.photos), methods: arr(n.methods), history: arr(n.history) };
 }
 const getP = (o, p) => p.split(".").reduce((a, k) => a?.[k], o);
 function setP(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
@@ -1980,7 +2016,7 @@ function nextStep(n) {
   return { label: n.status === "published" ? "อัปเดตทำเนียบ" : "บันทึกเข้าคลัง", miss };
 }
 async function fingerprint(n) {
-  const payload = JSON.stringify({ healer: n.healer, recipe: n.recipe, date: n.date, place: n.place, transcript: n.transcript });
+  const payload = JSON.stringify({ healer: n.healer, recipe: n.recipe, date: n.date, place: n.place, transcript: n.transcript, ...(n.extra.length ? { extra: n.extra.map(x => ({ cat: x.cat, recipe: x.recipe })) } : {}) });
   try { const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join(""); }
   catch { return ""; }
 }
@@ -2022,9 +2058,11 @@ async function syncRecord(n) {
         const rr = n.publishedRecipeId ? db.collection("recipes").doc(n.publishedRecipeId) : db.collection("recipes").doc();
         await rr.set(rec); n.publishedRecipeId = rr.id;
       } else if (n.publishedRecipeId) { await db.collection("recipes").doc(n.publishedRecipeId).delete(); n.publishedRecipeId = ""; }
+      await pubExtras(n, hid);
       n.publishedHealerId = hid; n.healerId = hid;
     } else {
       if (n.publishedRecipeId) { await db.collection("recipes").doc(n.publishedRecipeId).delete(); n.publishedRecipeId = ""; }
+      await unpubExtras(n);
       if (own && !S.recipes.some(r => r.healerId === hid && r.fromField !== n.id)) { await db.collection("healers").doc(hid).delete(); n.healerId = ""; }
       n.publishedHealerId = "";
     }
@@ -2050,6 +2088,24 @@ function updateBadges() {
   const show = isAdmin() && S.fieldOk && appr > 0 && !(S.tab === "field" && !S.noteId && S.fieldFilter === "approval");
   al.hidden = !show;
   if (show) al.innerHTML = `<span>🔔 มี <b>${appr}</b> คำขอรอเสนอคณะกรรมการหมอพื้นบ้าน</span><button class="btn primary" type="button" data-nact="toBatch">ไปที่ชุดเสนอคณะกรรมการ</button>`;
+}
+async function pubExtras(n, hid, more = {}) {
+  for (const id of arr(n.orphans)) await db.collection("recipes").doc(id).delete().catch(() => {});
+  n.orphans = [];
+  for (const x of n.extra) {
+    if (!xHas(x)) { if (x.pubId) { await db.collection("recipes").doc(x.pubId).delete().catch(() => {}); x.pubId = ""; } continue; }
+    const rec = { methods: x.methods.length ? x.methods : DEFMETH[x.cat], evidence: "folk", healerId: hid, fromField: n.id, hash: n.hash, locked: {}, consentScope: { research: n.consent.research, commercial: n.consent.commercial }, ...more, updatedAt: Date.now() };
+    for (const [k] of NRF) { const v = String(x.recipe[k] || "").trim(); if (x.vis[k] === "public") rec[k] = v; else { rec[k] = ""; if (v) rec.locked[k] = x.vis[k]; } }
+    if (!rec.name) rec.name = x.cat === "proc" ? "หัตถการที่หมอขอสงวนชื่อ" : x.cat === "other" ? "รายการที่หมอขอสงวนชื่อ" : "ตำรับที่หมอขอสงวนชื่อ";
+    const m = x.media, vid = !!n.consent.photo;
+    Object.assign(rec, { cat: x.cat, videoUrl: vid && okUrl(m.videoUrl) ? m.videoUrl.trim() : "", video: vid && m.video?.asset ? m.video : null, chartUrl: okUrl(m.chartUrl) ? m.chartUrl.trim() : "", chart: m.chart || null });
+    const rr = x.pubId ? db.collection("recipes").doc(x.pubId) : db.collection("recipes").doc();
+    await rr.set(rec); x.pubId = rr.id;
+  }
+}
+async function unpubExtras(n) {
+  for (const id of [...arr(n.orphans), ...n.extra.map(x => x.pubId).filter(Boolean)]) await db.collection("recipes").doc(id).delete().catch(() => {});
+  n.orphans = []; n.extra.forEach(x => { x.pubId = ""; });
 }
 const pubMedia = n => { const m = n.media || {}, vid = !!n.consent.photo; return { cat: RCL[n.cat] ? n.cat : "", videoUrl: vid && okUrl(m.videoUrl) ? m.videoUrl.trim() : "", video: vid && m.video?.asset ? m.video : null, chartUrl: okUrl(m.chartUrl) ? m.chartUrl.trim() : "", chart: m.chart || null }; };
 const noteTitle = n => n.healer.name || n.recipe.name || n.topic || "บันทึกไม่มีชื่อ";
@@ -2120,6 +2176,7 @@ async function publishOne(n, appr, hmap) {
         const rr = n.publishedRecipeId ? db.collection("recipes").doc(n.publishedRecipeId) : db.collection("recipes").doc();
         await rr.set(rec); n.publishedRecipeId = rr.id;
       }
+      await pubExtras(n, hid, { approval: { docNo: appr.docNo, docDate: appr.docDate, batch: appr.batch } });
       n.publishedHealerId = hid; n.healerId = hid; listed = " · ขึ้นทำเนียบแล้ว";
     } else listed = " · ไม่ขึ้นทำเนียบ เพราะหมอยังไม่ยินยอมให้เผยแพร่";
     n.status = "published";
@@ -2284,17 +2341,51 @@ function noteHField(k, n, dis) {
   return fld(l, key, n, t === "number" ? "number" : t === "date" ? "date" : "text", t === "number" ? 'inputmode="numeric" min="0"' : "");
 }
 const noteCat = n => recCat({ cat: n.cat, methods: n.methods, name: n.recipe.name });
-function syncProc(n) { const el = $("#procMedia"); if (el) el.hidden = noteCat(n) !== "proc" && !hasMedia(n.media); }
-function recipeFieldsHtml(n, dis) {
-  return `<label for="n-cat">หมวด<select id="n-cat" data-k="cat"${dis}><option value="">จัดอัตโนมัติจากด้านที่เลือก</option>${RCATS.map(([a, b, d]) => `<option value="${a}"${n.cat === a ? " selected" : ""}>${b} · ${d}</option>`).join("")}</select></label>
-      <fieldset><legend>ด้าน</legend><div class="opts">${METHODS.map(([m, ml]) => `<label for="n-meth-${m}"><input type="checkbox" id="n-meth-${m}" data-meth="${m}"${n.methods.includes(m) ? " checked" : ""}${dis}> ${ml}</label>`).join("")}</div></fieldset>
-      ${NRF.map(([k, l, t]) => `<div class="rf">
-        <div class="lab"><label for="${fid("recipe." + k)}">${l}</label>
-          <span class="seg" role="group" aria-label="ระดับการเปิดเผย">${VIS.map(([vv, vl]) => `<button type="button" class="v-${vv}" data-vis="${k}" data-v="${vv}" aria-pressed="${n.vis[k] === vv}"${dis}>${vl}</button>`).join("")}</span></div>
-        ${t === "area" ? `<textarea id="${fid("recipe." + k)}" data-k="recipe.${k}"${dis}>${esc(n.recipe[k])}</textarea>` : `<input type="text" id="${fid("recipe." + k)}" data-k="recipe.${k}" value="${esc(n.recipe[k])}"${dis}>`}
-      </div>`).join("")}
-      <div id="procMedia"${noteCat(n) === "proc" || hasMedia(n.media) ? "" : " hidden"}>${pmHtml(n.media, dis)}<p class="help">วิดีโอแสดงในทำเนียบเมื่อหมอยินยอม “แสดงภาพถ่ายของหมอ” ในหัวข้อ 1 · แผนนวดเผยแพร่พร้อมตำรับ</p></div>`;
+function syncProc() {}
+// หัวข้อ 4: แยกเป็น 3 กล่อง ตำรับยา / หัตถการ / อื่น ๆ แต่ละกล่องเพิ่มได้หลายรายการ
+// รายการแรกของบันทึกเก็บใน n.recipe (เดิม) รายการถัดไปเก็บใน n.extra
+const CATICON = { drug: "💊", proc: "🎬", other: "✳️" };
+const DEFMETH = { drug: ["herb"], proc: ["massage"], other: ["other"] };
+const CATLBL = {
+  drug: { name: "ชื่อตำรับยา" },
+  proc: { name: "ชื่อหัตถการ / ท่า", ingredients: "อุปกรณ์ น้ำมัน หรือสมุนไพรที่ใช้ร่วม (ถ้ามี)", preparation: "ขั้นตอน / ท่าที่ใช้", usage: "ความถี่ / ระยะเวลาที่ทำ", properties: "ผลที่ได้ตามที่หมอบอก" },
+  other: { name: "ชื่อรายการ", ingredients: "ส่วนประกอบ / อุปกรณ์", preparation: "รายละเอียด / วิธีการ" }
+};
+const blankRecipe = () => Object.fromEntries(NRF.map(([k]) => [k, ""]));
+const mainEmpty = n => !NRF.some(([k]) => String(n.recipe[k] || "").trim()) && !hasMedia(n.media);
+const xHas = x => NRF.some(([k]) => String(x.recipe[k] || "").trim()) || hasMedia(x.media);
+function noteItems(n) {
+  const out = [];
+  if (!mainEmpty(n) || n.mainOn) { if (!RCL[n.cat] && !mainEmpty(n)) n.cat = noteCat(n); out.push({ ref: "main", cat: RCL[n.cat] ? n.cat : noteCat(n), recipe: n.recipe, vis: n.vis, methods: n.methods, media: n.media }); }
+  for (const x of n.extra) out.push({ ref: x.id, cat: x.cat, recipe: x.recipe, vis: x.vis, methods: x.methods, media: x.media });
+  return out;
 }
+function itemHtml(n, it, no, dis) {
+  const main = it.ref === "main", L = CATLBL[it.cat] || {}, pre = main ? "" : "x-" + it.ref + "-";
+  const fidOf = k => main ? fid("recipe." + k) : pre + k;
+  const bind = k => main ? `data-k="recipe.${k}"` : `data-xk="${it.ref}.${k}"`;
+  const visb = (k, vv) => main ? `data-vis="${k}" data-v="${vv}"` : `data-xvis="${it.ref}.${k}" data-v="${vv}"`;
+  const ask = S.delItem === it.ref;
+  return `<div class="item" data-item="${it.ref}">
+    <div class="ih"><b>${no}. ${esc(it.recipe.name || "(ยังไม่ได้ตั้งชื่อ)")}</b>${dis ? "" : `<span class="ia"><label class="mv">ย้ายไป<select ${main ? 'data-k="cat"' : `data-xk="${it.ref}.cat"`} aria-label="ย้ายไปหมวด">${RCATS.map(([a, b]) => `<option value="${a}"${it.cat === a ? " selected" : ""}>${b}</option>`).join("")}</select></label>${ask ? `<button class="btn danger solid" type="button" data-delitem="${it.ref}">ยืนยันลบ</button><button class="btn" type="button" data-delitem="">ยกเลิก</button>` : `<button class="btn danger" type="button" data-askdel="${it.ref}">ลบรายการ</button>`}</span>`}</div>
+    <fieldset><legend>ด้าน</legend><div class="opts">${METHODS.map(([m, ml]) => `<label for="${pre || "n-"}meth-${m}"><input type="checkbox" id="${pre || "n-"}meth-${m}" ${main ? `data-meth="${m}"` : `data-xmeth="${it.ref}.${m}"`}${it.methods.includes(m) ? " checked" : ""}${dis}> ${ml}</label>`).join("")}</div></fieldset>
+    ${NRF.map(([k, l, t]) => { const lab = L[k] || l; return `<div class="rf">
+      <div class="lab"><label for="${fidOf(k)}">${lab}</label>
+        <span class="seg" role="group" aria-label="ระดับการเปิดเผย">${VIS.map(([vv, vl]) => `<button type="button" class="v-${vv}" ${visb(k, vv)} aria-pressed="${it.vis[k] === vv}"${dis}>${vl}</button>`).join("")}</span></div>
+      ${t === "area" ? `<textarea id="${fidOf(k)}" ${bind(k)}${dis}>${esc(it.recipe[k])}</textarea>` : `<input type="text" id="${fidOf(k)}" ${bind(k)} value="${esc(it.recipe[k])}"${dis}>`}
+    </div>`; }).join("")}
+    ${it.cat === "proc" || hasMedia(it.media) ? pmHtml(it.media, dis, it.ref) + `<p class="help">วิดีโอแสดงในทำเนียบเมื่อหมอยินยอม “แสดงภาพถ่ายของหมอ” ในหัวข้อ 1 · แผนนวดเผยแพร่พร้อมรายการนี้</p>` : ""}
+  </div>`;
+}
+function recipeFieldsHtml(n, dis) {
+  const items = noteItems(n);
+  return `<div id="itemsBox">${RCATS.map(([k, l, d]) => { const its = items.filter(i => i.cat === k); return `<section class="catbox c-${k}">
+    <div class="cbh"><h4>${CATICON[k]} ${l}<small>${its.length} รายการ</small></h4><span class="help">${d}</span></div>
+    ${its.map((it, j) => itemHtml(n, it, j + 1, dis)).join("") || `<p class="none">ยังไม่มี${l}ในบันทึกนี้</p>`}
+    ${dis ? "" : `<button class="btn add" type="button" data-additem="${k}">+ เพิ่ม${l}</button>`}
+  </section>`; }).join("")}</div>`;
+}
+function rerenderItems(n) { const box = $("#itemsBox"); if (box) box.outerHTML = recipeFieldsHtml(n, nlocked(n) ? " disabled" : ""); refreshLive(); }
 function mbField([k, l, t], n, dis) {
   const key = "mb." + k, id = fid(key), val = n.mb[k] ?? "";
   if (t === "marital") return `<label for="${id}">${l}<select id="${id}" data-k="${key}"${dis}><option value=""></option>${MARITAL.map(x => `<option${val === x ? " selected" : ""}>${x}</option>`).join("")}</select></label>`;
@@ -2330,7 +2421,7 @@ function mbPersonHtml(n, dis) {
 }
 function mbKnowHtml(n, dis) {
   return MBK.map(([no, title, fs]) => {
-    const has = fs.some(([k]) => k === "@recipe" ? n.recipe.name.trim() : !k.startsWith("@") && String(n.mb[k] ?? "").trim());
+    const has = fs.some(([k]) => k === "@recipe" ? n.recipe.name.trim() || n.extra.some(x => xHas(x)) : !k.startsWith("@") && String(n.mb[k] ?? "").trim());
     const body = fs.map(f => f[0] === "@note" ? `<p class="help">${f[1]}</p>` : f[0] === "@recipe" ? `<p class="mbsub">${f[1]}</p>${recipeFieldsHtml(n, dis)}` : mbField(f, n, dis)).join("");
     return `<details class="mbg"${no === "2" || has ? " open" : ""}><summary>${no}. ${title}</summary><div class="gbody">${body}</div></details>`;
   }).join("");
@@ -2344,7 +2435,8 @@ function mbDoc(n) {
   const age = ageOf(m.birthDate);
   const startY = Number(m.treatYear);
   const yrs = String(h.years ?? "").trim() || (startY > 2400 ? String(new Date().getFullYear() + 543 - startY) : "");
-  const recipeTxt = NRF.filter(([k]) => n.recipe[k].trim()).map(([k, l]) => `<b>${esc(l.split(" (")[0])}:</b> ${n.vis[k] === "secret" ? "(หมอขอสงวนไว้ ไม่เปิดเผย)" : esc(n.recipe[k]).replace(/\n/g, "<br>")}`).join("<br>");
+  const recipeTxt = NRF.filter(([k]) => n.recipe[k].trim()).map(([k, l]) => `<b>${esc(l.split(" (")[0])}:</b> ${n.vis[k] === "secret" ? "(หมอขอสงวนไว้ ไม่เปิดเผย)" : esc(n.recipe[k]).replace(/\n/g, "<br>")}`).join("<br>")
+    + n.extra.filter(xHas).map(x => `<br><br><b>[${RCL[x.cat]}] ${x.vis.name === "secret" ? "(หมอขอสงวนชื่อ)" : esc(x.recipe.name || "ไม่ระบุชื่อ")}</b><br>` + NRF.filter(([k]) => k !== "name" && String(x.recipe[k]).trim()).map(([k, l]) => `<b>${esc(((CATLBL[x.cat] || {})[k] || l).split(" (")[0])}:</b> ${x.vis[k] === "secret" ? "(หมอขอสงวนไว้ ไม่เปิดเผย)" : esc(x.recipe[k]).replace(/\n/g, "<br>")}`).join("<br>")).join("");
   const methodsTxt = [m.methodText, n.methods.map(x => ML[x]).filter(Boolean).join(", ")].filter(x => String(x).trim()).join("\n");
   return `<html><head><meta charset="utf-8"><title>แบบ ม.บ.1-1</title><style>
 @page{size:A4;margin:2cm 2cm 2cm 2.5cm}
@@ -2837,8 +2929,9 @@ async function withdrawNote() {
       }
     } else {
       if (n.publishedRecipeId) await db.collection("recipes").doc(n.publishedRecipeId).delete();
+      await unpubExtras(n);
       const hid = n.publishedHealerId, h = hById(hid);
-      if (h && h.fromField === n.id && !S.recipes.some(r => r.healerId === hid && r.id !== n.publishedRecipeId)) await db.collection("healers").doc(hid).delete();
+      if (h && h.fromField === n.id && !S.recipes.some(r => r.healerId === hid && r.fromField !== n.id)) await db.collection("healers").doc(hid).delete();
     }
     n.withdrawal = { reason: w.reason, detail: w.detail.trim(), docNo: w.docNo.trim(), at: Date.now(), by: me };
     n.status = "withdrawn";
@@ -2868,6 +2961,7 @@ function preview(n) {
   return `<div class="preview">
     <div class="pv-h">${avatarHTML({ ...n.healer, id: n.healerId || n.id, photo: n.consent.photo ? n.healer.photo : "" }, 52)}<div><b style="font-size:16.5px">${esc(n.healer.name || "ชื่อหมอ")}</b><div class="status">${esc([n.healer.healerType, n.healer.province].filter(Boolean).join(" · ") || "ประเภทหมอ · จังหวัด")}</div></div></div>
     ${shown.length ? shown.map(([k, l]) => { const vv = n.vis[k]; return `<div class="f"><h3>${l.split(" (")[0]}</h3>${vv === "public" ? `<p>${esc(n.recipe[k])}</p>` : `<span class="locked ${vv}">${LOCKLABEL[vv]}</span>`}</div>`; }).join("") : `<span class="status">ยังไม่มีข้อมูลตำรับ กรอกในหัวข้อ 4 หรือให้ AI ช่วยจัดจากคำบอกเล่า</span>`}
+    ${n.extra.some(xHas) ? `<div class="f"><h3>รายการอื่นในบันทึกนี้</h3><p>${n.extra.filter(xHas).map(x => `${CATICON[x.cat]} ${esc(x.vis.name === "public" ? x.recipe.name || "ไม่ระบุชื่อ" : "(สงวนชื่อ)")}`).join("<br>")}</p></div>` : ""}
     ${n.consent.location && (n.healer.servicePlace || n.healer.contact) ? `<div class="src">${n.healer.servicePlace ? "📍 " + esc(n.healer.servicePlace) : ""}${n.healer.contact ? " · ติดต่อ " + esc(n.healer.contact) : ""}</div>` : n.healer.servicePlace ? `<div class="src">สถานที่ให้บริการจะไม่แสดง เพราะหมอยังไม่ยินยอม</div>` : ""}
     <div class="tags">${n.methods.map(m => `<span class="tag">${ML[m]}</span>`).join("")}<span class="ev folk">${EV.folk}</span></div>
   </div>`;
@@ -2917,11 +3011,23 @@ function onField(e) {
     const m = el.dataset.meth; n.methods = el.checked ? [...new Set([...n.methods, m])] : n.methods.filter(x => x !== m); syncProc(n);
     n.updatedAt = Date.now(); scheduleSave(); refreshLive(); return;
   }
+  if (el.dataset?.xk) {
+    const [id, f] = el.dataset.xk.split("."), x = n.extra.find(y => y.id === id); if (!x) return;
+    if (f === "cat") { const old = x.cat; x.cat = el.value; if (!x.methods.length || x.methods.join() === DEFMETH[old].join()) x.methods = DEFMETH[x.cat].slice(); n.updatedAt = Date.now(); scheduleSave(); rerenderItems(n); return; }
+    x.recipe[f] = el.value; if (x.vis[f] === "public") flagReconfirm(n, "แก้ไขช่องที่เปิดเผย ต้องให้หมอยืนยันอีกครั้ง");
+    if (f === "name") { const h = el.closest(".item")?.querySelector(".ih b"); if (h) h.textContent = h.textContent.replace(/^(\d+\.).*/, "$1 " + (el.value || "(ยังไม่ได้ตั้งชื่อ)")); }
+    n.updatedAt = Date.now(); scheduleSave(); refreshLive(); return;
+  }
+  if (el.dataset?.xmeth) {
+    const [id, m] = el.dataset.xmeth.split("."), x = n.extra.find(y => y.id === id); if (!x) return;
+    x.methods = el.checked ? [...new Set([...x.methods, m])] : x.methods.filter(y => y !== m); n.updatedAt = Date.now(); scheduleSave(); refreshLive(); return;
+  }
   const k = el.dataset?.k; if (!k) return;
   const v = el.type === "checkbox" ? el.checked : el.value;
   if (getP(n, k) === v) return;
   setP(n, k, v);
-  if (k === "cat" || k === "recipe.name") syncProc(n);
+  if (k === "cat") { rerenderItems(n); return; }
+  if (k === "recipe.name") { const h = el.closest(".item")?.querySelector(".ih b"); if (h) h.textContent = h.textContent.replace(/^(\d+\.).*/, "$1 " + (v || "(ยังไม่ได้ตั้งชื่อ)")); }
   if (k === "healer.prefix" || k === "healer.personName") n.healer.name = fullName(n.healer);
   if (k === "healer.province" && n.status === "draft" && !n.review.assignedTo && provName(v)) n.review.assignedTo = provName(v);
   if (k.startsWith("recipe.") && n.vis[k.slice(7)] === "public") flagReconfirm(n, "แก้ไขช่องที่เปิดเผย ต้องให้หมอยืนยันอีกครั้ง");
