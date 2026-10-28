@@ -113,6 +113,8 @@ button { font: inherit; cursor: pointer; }
 .pm { display: grid; gap: 10px; }
 .pmrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pml { font-weight: 600; }
+.pml:empty { display: none; }
+.pmslot { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .pmf { font-size: 14px; background: var(--sunk); border-radius: 8px; padding: 4px 10px; max-width: 100%; overflow-wrap: anywhere; }
 .pmview { display: grid; gap: 10px; }
 .pmvid { width: 100%; max-height: 440px; border-radius: 12px; background: #000; }
@@ -994,10 +996,11 @@ const hasMedia = it => !!(it?.video?.asset || okUrl(it?.videoUrl) || it?.chart |
 function pmHtml(m, dis, item = "") {
   const row = (w, label, accept, help) => { const e = m[w]; return `<div class="pmrow"><span class="pml">${label}</span>${e ? `<span class="pmf">${w === "video" ? "🎬" : "🗺️"} ${esc(e.name || "ไฟล์")}${mbStr(e.size)}</span>${dis ? "" : `<button class="btn" type="button" data-pmdel="${w}">ลบไฟล์</button>`}` : ""}${dis ? "" : `<span class="btn filebtn">${e ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" data-pmin="${w}" accept="${accept}" aria-label="${label}"></span>`}<span class="help">${help}</span></div>`; };
   return `<fieldset class="pm wide"${item ? ` data-pmitem="${esc(item)}"` : ""}><legend>สื่อประกอบหัตถการ</legend>
-    <label>ลิงก์วิดีโอสาธิต (YouTube, Google Drive, Facebook ฯลฯ)<input type="url" data-pmk="videoUrl" value="${esc(m.videoUrl || "")}" placeholder="https://"${dis}></label>
-    ${assets ? row("video", "หรืออัปโหลดคลิป", "video/*", "MP4 ไม่เกิน 20 MB · คลิปยาวให้ใส่เป็นลิงก์") : `<p class="help">โหมดนี้อัปโหลดคลิปไม่ได้ ใส่วิดีโอเป็นลิงก์แทน</p>`}
-    ${row("chart", "ไฟล์แผนนวด", "image/*,application/pdf", "ภาพหรือ PDF เช่น แผนภาพจุดนวด แนวเส้น ลำดับท่า")}
-    <label>หรือลิงก์แผนนวด<input type="url" data-pmk="chartUrl" value="${esc(m.chartUrl || "")}" placeholder="https://"${dis}></label>
+    <div class="pmslot"><b>🎬 วิดีโอสาธิต</b>
+      <input type="url" data-pmk="videoUrl" value="${esc(m.videoUrl || "")}" placeholder="วางลิงก์วิดีโอ เช่น YouTube หรือ Google Drive" aria-label="ลิงก์วิดีโอสาธิต"${dis}>
+      ${assets ? row("video", "หรือ", "video/*", "อัปโหลดคลิป MP4 ไม่เกิน 20 MB") : ""}</div>
+    <div class="pmslot"><b>🗺️ ไฟล์แผนนวด</b>${row("chart", "", "image/*,application/pdf", "ภาพหรือ PDF เช่น แผนภาพจุดนวด แนวเส้น ลำดับท่า")}
+      ${m.chartUrl ? `<input type="url" data-pmk="chartUrl" value="${esc(m.chartUrl)}" aria-label="ลิงก์แผนนวด"${dis}>` : ""}</div>
   </fieldset>`;
 }
 async function storeMedia(f, w) {
