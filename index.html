@@ -590,7 +590,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
     <div id="dirKpi" aria-live="polite"></div>
     <div class="search" role="search">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="dq" type="text" placeholder="ค้นหาหมอ: ชื่อ ประเภทหมอ รางวัล กรรมวิธี สถานที่" autocomplete="off" aria-label="ค้นหาหมอพื้นบ้าน">
+      <input id="dq" type="text" placeholder="ค้นหาหมอ: ชื่อ ประเภทหมอ รางวัล หัตถการ สถานที่" autocomplete="off" aria-label="ค้นหาหมอพื้นบ้าน">
       <button class="clear" id="clearDq" type="button" hidden>ล้าง</button>
     </div>
     <div class="fbar" id="dirFilters" role="group" aria-label="ตัวกรองทำเนียบ">
@@ -599,7 +599,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
       <label for="fDist">อำเภอ<select id="fDist" data-f="dist"></select></label>
       <label for="fSub">ตำบล<select id="fSub" data-f="sub"></select></label>
       <label for="fAward">รางวัล / ตำแหน่ง<select id="fAward" data-f="award"></select></label>
-      <label for="fMeth">กรรมวิธี<select id="fMeth" data-f="meth"></select></label>
+      <label for="fMeth">หมวดภูมิปัญญา<select id="fMeth" data-f="meth"></select></label>
       <button class="btn" type="button" id="fClear" data-act="clearFilters" hidden>ล้างตัวกรอง</button>
     </div>
     <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
@@ -1344,9 +1344,11 @@ function dirOK(h, skip) {
   if (skip !== "award" && S.f.award !== "all") {
     if (S.f.award === "__lic" ? !h.licenseNo : S.f.award === "__any" ? !h.award : h.award !== S.f.award) return false;
   }
-  if (skip !== "meth" && S.f.meth !== "all" && !arr(h.methods).includes(S.f.meth)) return false;
+  if (skip !== "meth" && S.f.meth !== "all" && !(S.f.meth === "vid" ? S.recipes.some(r => r.healerId === h.id && (r.video?.asset || okUrl(r.videoUrl))) : hcats(h).has(S.f.meth))) return false;
   return true;
 }
+// หมวดที่หมอมีข้อมูล: นับจากตำรับยา / หัตถการ / อื่น ๆ ของหมอ ให้ตรงกับแท็บในหน้าหมอ
+const hcats = h => new Set(S.recipes.filter(r => r.healerId === h.id).map(recCat));
 function renderDirFilters() {
   const opt = (v, l, n) => `<option value="${esc(v)}"${n === 0 ? " disabled" : ""}>${esc(l)}${n != null ? ` (${n})` : ""}</option>`;
   const count = (skip, pred) => S.healers.filter(h => dirOK(h, skip) && pred(h)).length;
@@ -1360,7 +1362,8 @@ function renderDirFilters() {
   set("#fDist", opt("all", dists.length ? "ทุกอำเภอ" : "ยังไม่มีข้อมูลอำเภอ") + dists.map(d => opt(d, d, count("dist", h => distName(h.district) === d))).join(""), S.f.dist);
   set("#fSub", opt("all", subs.length ? "ทุกตำบล" : "ยังไม่มีข้อมูลตำบล") + subs.map(d => opt(d, d, count("sub", h => subName(h.subdistrict) === d))).join(""), S.f.sub);
   set("#fAward", opt("all", "ทั้งหมด") + opt("__lic", "มีใบประจำตัวหมอพื้นบ้าน", count("award", h => !!h.licenseNo)) + opt("__any", "มีรางวัลหรือตำแหน่ง", count("award", h => !!h.award)) + awards.map(a => opt(a, a, count("award", h => h.award === a))).join(""), S.f.award);
-  set("#fMeth", opt("all", "ทุกกรรมวิธี") + METHODS.map(([k, l]) => opt(k, l, count("meth", h => arr(h.methods).includes(k)))).join(""), S.f.meth);
+  if (S.f.meth !== "all" && S.f.meth !== "vid" && !RCL[S.f.meth]) S.f.meth = "all";
+  set("#fMeth", opt("all", "ทุกหมวด") + RCATS.map(([k, l]) => opt(k, "มี" + l, count("meth", h => hcats(h).has(k)))).join("") + opt("vid", "มีวิดีโอสาธิต", count("meth", h => S.recipes.some(r => r.healerId === h.id && (r.video?.asset || okUrl(r.videoUrl))))), S.f.meth);
   const tc = t => count("type", h => htypesOf(h).includes(t));
   set("#fType", opt("all", "ทุกประเภท") + HTYPES.map(t => opt(t, t, tc(t))).join(""), S.f.type);
   $("#fClear").hidden = S.prov === "all" && Object.values(S.f).every(v => v === "all");
@@ -1372,24 +1375,25 @@ function filterLabel() {
   if (S.f.dist !== "all") parts.push("อ." + S.f.dist);
   if (S.f.sub !== "all") parts.push("ต." + S.f.sub);
   if (S.f.award !== "all") parts.push(S.f.award === "__lic" ? "มีใบประจำตัว" : S.f.award === "__any" ? "มีรางวัล/ตำแหน่ง" : S.f.award);
-  if (S.f.meth !== "all") parts.push(ML[S.f.meth]);
+  if (S.f.meth !== "all") parts.push(S.f.meth === "vid" ? "มีวิดีโอสาธิต" : "มี" + RCL[S.f.meth]);
   return parts.length ? " · " + parts.join(" · ") : "";
 }
 // ภาพรวมคลังภูมิปัญญา: summary cards above the directory search, following the current filters
 function renderKpi(list, filtered) {
   const el = $("#dirKpi"); if (!el) return;
   const ids = new Set(list.map(h => h.id));
-  const nRec = S.recipes.filter(r => ids.has(r.healerId)).length;
+  const recs = S.recipes.filter(r => ids.has(r.healerId) && (!RCL[S.f.meth] || recCat(r) === S.f.meth)), nRec = recs.length;
+  const recSub = RCATS.map(([k, l]) => `${l === "ตำรับยา" ? "ยา" : l} ${recs.filter(r => recCat(r) === k).length}`).join(" · ");
   const nProv = new Set(list.map(h => provName(h.province)).filter(Boolean)).size;
   const nLic = list.filter(h => h.licenseNo).length;
   const card = (c, label, n, sub) => `<div class="kpi" style="--c:${c}"><span>${label}</span><b>${n}</b><small>${sub}</small></div>`;
   el.innerHTML = `<div class="kpihead"><h2>ภาพรวมคลังภูมิปัญญา${filtered ? " · ตามตัวกรอง" : ""}</h2>${S.healers.some(h => h.sample) ? "<em>ข้อมูลสาธิต</em>" : ""}</div>
-    <div class="kpis">${card("var(--indigo)", "หมอพื้นบ้าน", list.length, filtered ? `จาก ${S.healers.length} ท่านในทำเนียบ` : "ที่ยินยอมให้เผยแพร่")}${card("var(--turmeric)", "ตำรับยาและวิธีรักษา", nRec, "จากหมอในรายชื่อ")}${card("var(--leaf)", "จังหวัด", nProv, "ที่มีหมอในรายชื่อ")}${card("#7a4f9a", "มีใบประจำตัวหมอ", nLic, `จาก ${list.length} ท่าน`)}</div>`;
+    <div class="kpis">${card("var(--indigo)", "หมอพื้นบ้าน", list.length, filtered ? `จาก ${S.healers.length} ท่านในทำเนียบ` : "ที่ยินยอมให้เผยแพร่")}${card("var(--turmeric)", RCL[S.f.meth] || "ตำรับยาและหัตถการ", nRec, RCL[S.f.meth] ? "จากหมอในรายชื่อ" : recSub)}${card("var(--leaf)", "จังหวัด", nProv, "ที่มีหมอในรายชื่อ")}${card("#7a4f9a", "มีใบประจำตัวหมอ", nLic, `จาก ${list.length} ท่าน`)}</div>`;
 }
 function renderDir() {
   if (S.ready < 3) return;
   const terms = norm(S.dq).split(/\s+/).filter(Boolean);
-  const hay = h => squash([h.name, h.province, h.district, h.subdistrict, h.servicePlace, h.healerType, h.award, h.licenseNo, h.proposer, arr(h.methods).map(m => ML[m]).join(" "), "การ" + arr(h.methods).map(m => ML[m]).join(" ")].join(" "));
+  const hay = h => squash([h.name, h.province, h.district, h.subdistrict, h.servicePlace, h.healerType, h.award, h.licenseNo, h.proposer, arr(h.methods).map(m => ML[m]).join(" "), "การ" + arr(h.methods).map(m => ML[m]).join(" "), [...hcats(h)].map(k => RCL[k]).join(" ")].join(" "));
   renderDirFilters();
   const list = S.healers.filter(h => dirOK(h) && terms.every(t => hay(h).includes(squash(t))));
   renderKpi(list, terms.length || S.prov !== "all" || Object.values(S.f).some(v => v !== "all"));
@@ -1623,7 +1627,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.sym) { const v = t.dataset.sym; S.syms = S.syms.includes(v) ? S.syms.filter(x => x !== v) : [...S.syms, v]; render(); return; }
   if (t.dataset.m) { if (!t.disabled) { S.method = t.dataset.m; render(); } return; }
   const a = t.dataset.act, id = t.dataset.id;
-  if (a === "openHealer") { e.preventDefault(); if (S.noteId) await leaveNote(); S.tab = "dir"; S.healer = id; S.hcat = "all"; S.del = null; render(); window.scrollTo({ top: 0 }); }
+  if (a === "openHealer") { e.preventDefault(); if (S.noteId) await leaveNote(); S.tab = "dir"; S.healer = id; S.hcat = RCL[S.f.meth] ? S.f.meth : "all"; S.del = null; render(); window.scrollTo({ top: 0 }); }
   if (a === "back") { S.healer = null; render(); }
   if (a === "editHealer") openForm("healers", hById(id));
   if (a === "addRecipe") openForm("recipes", { healerId: id, methods: arr(hById(id)?.methods), evidence: "folk" });
