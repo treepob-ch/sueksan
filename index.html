@@ -248,7 +248,7 @@ input:disabled, textarea:disabled, select:disabled { opacity: .75; }
 .stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .stat { font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 11px; color: var(--muted); }
 .stat b { color: var(--fg); font-variant-numeric: tabular-nums; font-weight: 600; }
-.fbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.fbar { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; gap: 10px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
 .fbar select { padding: 7px 8px; font-size: 14px; }
 @media (max-width: 820px) { .fbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 fieldset.grp { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; margin: 0; display: grid; gap: 10px; }
@@ -544,7 +544,6 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
     </div>
     <div class="fbar" id="dirFilters" role="group" aria-label="ตัวกรองทำเนียบ">
       <label for="fType">ประเภทหมอ<select id="fType" data-f="type"></select></label>
-      <label for="fLearn">การรับผู้สนใจเรียน<select id="fLearn" data-f="learn"></select></label>
       <label for="provSelDir">จังหวัด<select id="provSelDir" class="provsel"></select></label>
       <label for="fDist">อำเภอ<select id="fDist" data-f="dist"></select></label>
       <label for="fSub">ตำบล<select id="fSub" data-f="sub"></select></label>
@@ -1193,10 +1192,9 @@ document.addEventListener("click", async e => {
   }
 });
 // ---- directory filters ----
-S.f = { type: "all", learn: "all", dist: "all", sub: "all", award: "all", meth: "all" };
+S.f = { type: "all", dist: "all", sub: "all", award: "all", meth: "all" };
 function dirOK(h, skip) {
   if (!provOK(h)) return false;
-  if (skip !== "learn" && S.f.learn !== "all" && !h.learnAccept) return false;
   if (skip !== "type" && S.f.type !== "all" && !htypesOf(h).includes(S.f.type)) return false;
   if (skip !== "dist" && S.f.dist !== "all" && distName(h.district) !== S.f.dist) return false;
   if (skip !== "sub" && S.f.sub !== "all" && subName(h.subdistrict) !== S.f.sub) return false;
@@ -1221,14 +1219,12 @@ function renderDirFilters() {
   set("#fAward", opt("all", "ทั้งหมด") + opt("__lic", "มีใบประจำตัวหมอพื้นบ้าน", count("award", h => !!h.licenseNo)) + opt("__any", "มีรางวัลหรือตำแหน่ง", count("award", h => !!h.award)) + awards.map(a => opt(a, a, count("award", h => h.award === a))).join(""), S.f.award);
   set("#fMeth", opt("all", "ทุกกรรมวิธี") + METHODS.map(([k, l]) => opt(k, l, count("meth", h => arr(h.methods).includes(k)))).join(""), S.f.meth);
   const tc = t => count("type", h => htypesOf(h).includes(t));
-  set("#fLearn", opt("all", "ทั้งหมด") + opt("yes", "🎓 รับผู้สนใจเรียน", count("learn", h => !!h.learnAccept)), S.f.learn);
   set("#fType", opt("all", "ทุกประเภท") + HTYPES.map(t => opt(t, t, tc(t))).join(""), S.f.type);
   $("#fClear").hidden = S.prov === "all" && Object.values(S.f).every(v => v === "all");
 }
 function filterLabel() {
   const parts = [];
   if (S.f.type !== "all") parts.push(S.f.type);
-  if (S.f.learn !== "all") parts.push("รับผู้สนใจเรียน");
   if (S.prov !== "all") parts.push("จ." + S.prov);
   if (S.f.dist !== "all") parts.push("อ." + S.f.dist);
   if (S.f.sub !== "all") parts.push("ต." + S.f.sub);
@@ -1258,7 +1254,6 @@ function renderDir() {
         <span class="nm">${esc(h.name)}</span>${h.award ? `<span class="aw">🏅 ${esc(h.award)}</span>` : ""}
         <span class="mt">📍 ${esc(locLine(h) || "-")} · ตำรับ ${n}</span>
         ${h.licenseNo ? `<span class="lic">✓ ใบประจำตัว ${esc(h.licenseNo)}</span>` : ""}
-        ${h.learnAccept ? `<span class="lrn">🎓 รับผู้สนใจเรียน</span>` : ""}
         ${h.expertise ? `<span class="ex">${esc(h.expertise)}</span>` : ""}</span></button>`;
     }).join("")}</div></section>`).join("");
 }
@@ -1481,7 +1476,7 @@ document.addEventListener("click", async e => {
   if (a === "editRecipe") openForm("recipes", S.recipes.find(r => r.id === id));
   if (a === "newFromDoc" && isAdmin()) openForm("healers", { consent: "agency", methods: [] });
   if (a === "clearSyms") { S.syms = []; render(); }
-  if (a === "clearFilters") { S.prov = "all"; S.f = { type: "all", learn: "all", dist: "all", sub: "all", award: "all", meth: "all" }; render(); }
+  if (a === "clearFilters") { S.prov = "all"; S.f = { type: "all", dist: "all", sub: "all", award: "all", meth: "all" }; render(); }
   if (a === "login") openLogin();
   if (a === "ask") openAsk(t.dataset.topic || "", t.dataset.purpose || "");
   if (a === "logout") logout();
