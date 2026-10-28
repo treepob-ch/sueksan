@@ -2892,7 +2892,7 @@ async function aiScan() {
   const n = S.draft; if (!n || !sampleFn || !n.photos.length) return;
   S.aiBusy = true; S.aiMsg = "กำลังเตรียมไฟล์…"; renderNote();
   try {
-    const images = [], texts = [], map = [], skipped = [], multi = [], MAXI = 10;
+    const images = [], texts = [], map = [], skipped = [], multi = [], MAXI = Math.max(1, Math.min(10, sampleLimits?.images?.maxCount || 10));
     for (const [i, p] of n.photos.entries()) {
       const k = kindOf(p);
       try {
@@ -2933,8 +2933,9 @@ ${map.length ? "ลำดับภาพ: " + map.join(" · ") : ""}
 - files: บอกว่าไฟล์แต่ละไฟล์ (เลข i ตามรายการไฟล์ทั้งหมด) คือเอกสารอะไร ใช้ค่า mb11 = แบบ ม.บ.1-1, cert = หนังสือรับรองการเป็นหมอพื้นบ้าน, consent = หนังสือยินยอมให้เผยแพร่, other = อื่น ๆ
 - pages: สำหรับไฟล์ PDF หลายหน้า${multi.length ? ` (ไฟล์ ${multi.join(", ")})` : ""} บอกประเภทเอกสารของทุกหน้าที่เห็น (i = เลขไฟล์, p = เลขหน้า) ใช้ค่าเดียวกับ files ถ้าทั้งไฟล์เป็นเอกสารเดียวกันก็ใส่ทุกหน้าเป็นค่าเดียวกัน
 ${texts.length ? "\nข้อความจากไฟล์:\n" + texts.join("\n\n") : ""}`;
-    const { text } = await sampleFn(prompt, images.length ? { images, modelTier: "default" } : { modelTier: "default" });
-    const m = String(text).match(/\{[\s\S]*\}/); const r = JSON.parse(m ? m[0] : text);
+    const { text } = await aiCall(prompt, images.length ? { images, modelTier: "default" } : { modelTier: "default" });
+    const raw = String(text).replace(/```(?:json)?/gi, ""), a = raw.indexOf("{"), b = raw.lastIndexOf("}");
+    const r = JSON.parse(a >= 0 && b > a ? raw.slice(a, b + 1) : raw);
     let filled = 0, sorted = 0;
     const put = (obj, k, val) => { const v = typeof val === "number" ? String(val) : typeof val === "string" ? val.trim() : ""; if (v && !String(obj[k] ?? "").trim()) { obj[k] = v; filled++; } };
     for (const k of HK) put(n.healer, k, r?.healer?.[k]);
@@ -2951,7 +2952,7 @@ ${texts.length ? "\nข้อความจากไฟล์:\n" + texts.join(
     n.healer.name = fullName(n.healer);
     S.aiMsg = (filled || sorted || parts || found.length ? `✓ AI กรอกให้แล้ว ${filled} ช่อง${found.length ? ` พบตำรับยา/หัตถการ ${found.length} รายการ รอติ๊กประเภทในหัวข้อ 4` : ""}${sorted ? ` แยกประเภทไฟล์ ${sorted} ไฟล์` : ""}${parts ? ` และแยก PDF ออกเป็น ${parts} ไฟล์ตามเอกสาร` : ""} ตรวจกับต้นฉบับอีกครั้งก่อนบันทึกเข้าคลัง` : "AI ไม่พบข้อมูลใหม่ที่จะเติม") + (skipped.length ? ` · อ่านไม่ได้: ${skipped.join(", ")}` : "");
     if (filled || sorted || found.length) { nlog(n, `AI อ่านเอกสาร ${n.photos.length} ไฟล์ เติม ${filled} ช่อง แยกประเภท ${sorted} ไฟล์${found.length ? ` พบ ${found.length} รายการรอเลือกประเภท` : ""}`); scheduleSave(); }
-  } catch (err) { S.aiMsg = err?.code === "nothing" ? "ไม่มีไฟล์ที่ AI อ่านได้ ใช้รูป PDF หรือ Word (.docx)" : AI_ERR[err?.code] || "AI อ่านเอกสารไม่สำเร็จ ลองอีกครั้ง หรือคีย์เอง"; if (err?.code === "not_granted") sampleFn = null; }
+  } catch (err) { S.aiMsg = err?.code === "nothing" ? "ไม่มีไฟล์ที่ AI อ่านได้ ใช้รูป PDF หรือ Word (.docx)" : aiErrMsg(err, "AI อ่านเอกสารไม่สำเร็จ ลองอีกครั้ง หรือคีย์เอง"); if (err?.code === "not_granted") sampleFn = null; }
   S.aiBusy = false; if (S.draft === n) renderNote();
 }
 function noteActions(n) {
@@ -3176,7 +3177,14 @@ function dataUrlToBlob(d) {
 }
 
 // ---- AI ----
-const AI_ERR = { not_granted: "ไม่ได้อนุญาตให้หน้านี้ใช้ AI", rate_limited: "ใช้ AI ถี่เกินไป รอสักครู่แล้วลองใหม่", images_unavailable: "บัญชีนี้ส่งภาพให้ AI ไม่ได้" };
+const AI_ERR = { not_granted: "ไม่ได้อนุญาตให้หน้านี้ใช้ AI", rate_limited: "ใช้ AI ถี่เกินไป หรือโควตาการใช้งานของบัญชีหมด รอสักครู่แล้วลองใหม่", images_unavailable: "หน้านี้ยังส่งภาพให้ AI ไม่ได้ รีเฟรชหน้าแล้วกดอนุญาตอีกครั้ง",
+  image_rejected: "AI ไม่รับภาพนี้ (จำนวนหรือขนาดเกิน) ลองแนบทีละไฟล์", invalid_json: "AI ตอบกลับไม่ครบ ลองกด “อ่านไฟล์ทั้งหมดอีกครั้ง”", prompt_too_large: "เอกสารยาวเกินไปสำหรับการอ่านครั้งเดียว ลองแนบทีละไฟล์",
+  session_expired: "ต้องเข้าสู่ระบบ Claude ใหม่", sampling_disabled: "บัญชีนี้ใช้ AI ในหน้านี้ไม่ได้", refused: "AI ไม่อ่านเอกสารนี้", empty_completion: "AI ไม่ได้ตอบกลับ ลองอีกครั้ง", upstream_error: "เชื่อมต่อ AI ไม่สำเร็จชั่วคราว ลองอีกครั้ง" };
+let sampleLimits = null;
+// เรียก AI: รูปแบบปัจจุบัน sample(prompt, options) ถ้าตัวแสดงผลรุ่นเก่าไม่รับ ให้ลองรูปแบบ sample({prompt, ...options})
+async function aiCall(prompt, opts) { try { return await sampleFn(prompt, opts); } catch (e) { if (e?.code === "invalid_request" || e?.code === "transform_error") return await sampleFn({ prompt, ...opts }); throw e; } }
+async function aiJson(prompt, opts) { try { return await sampleFn.json(prompt, opts); } catch (e) { if (e?.code === "invalid_request" || e?.code === "transform_error") return await sampleFn.json({ prompt, ...opts }); throw e; } }
+const aiErrMsg = (err, fallback) => { try { console.warn("[AI]", err); } catch {} const c = err?.code; return (AI_ERR[c] || fallback) + (c && !AI_ERR[c] ? ` (รหัส ${c})` : !c && err instanceof SyntaxError ? " (อ่านคำตอบของ AI ไม่ได้)" : !c && err?.message ? ` (${String(err.message).slice(0, 80)})` : ""); };
 async function aiStructure() {
   const n = S.draft; if (!n || !sampleFn) return;
   if (!n.transcript.trim()) { toast("ใส่คำบอกเล่าในหัวข้อ 3 ก่อน"); return; }
@@ -3197,12 +3205,12 @@ async function aiStructure() {
 ${n.transcript}
 """`;
   try {
-    const r = await sampleFn.json(prompt, { modelTier: "default" });
+    const r = await aiJson(prompt, { modelTier: "default" });
     const found = aiPending(arr(r?.items).length ? r.items : r && typeof r === "object" && !Array.isArray(r) && r.name !== undefined ? [r] : Array.isArray(r) ? r : []);
     if (found.length) n.aiItems = found;
     S.aiMsg = found.length ? `AI พบ ${found.length} รายการ ติ๊กประเภทในหัวข้อ 4 แล้วกดนำเข้า ตรวจกับเสียงต้นฉบับอีกครั้ง` : "คำบอกเล่ายังไม่มีข้อมูลตำรับหรือวิธีรักษา";
     if (found.length) { nlog(n, `AI แยกคำบอกเล่าได้ ${found.length} รายการ รอเลือกประเภท`); scheduleSave(); }
-  } catch (err) { S.aiMsg = AI_ERR[err?.code] || "AI ช่วยไม่สำเร็จ ลองอีกครั้ง"; if (err?.code === "not_granted") sampleFn = null; }
+  } catch (err) { S.aiMsg = aiErrMsg(err, "AI ช่วยไม่สำเร็จ ลองอีกครั้ง"); if (err?.code === "not_granted") sampleFn = null; }
   S.aiBusy = false; if (S.draft === n) renderNote();
 }
 async function aiPhoto(j) {
@@ -3210,7 +3218,7 @@ async function aiPhoto(j) {
   S.photoBusy[j] = true; renderNote();
   try {
     const blob = p.asset ? await (await fetch("/_blob/" + p.asset)).blob() : dataUrlToBlob(p.src);
-    const { text } = await sampleFn(`ภาพนี้ถ่ายระหว่างสัมภาษณ์หมอพื้นบ้านไทย${n.healer.province ? " " + n.healer.province : ""} ช่วยบอกว่าน่าจะเป็นพืชอะไร ตอบภาษาไทยไม่เกิน 2 บรรทัด: ชื่อไทยที่ใช้ทั่วไป (ชื่อวิทยาศาสตร์) และความมั่นใจ (สูง/กลาง/ต่ำ) ถ้าไม่ใช่พืชหรือดูไม่ออกให้บอกตรงๆ`, { images: [blob], modelTier: "default" });
+    const { text } = await aiCall(`ภาพนี้ถ่ายระหว่างสัมภาษณ์หมอพื้นบ้านไทย${n.healer.province ? " " + n.healer.province : ""} ช่วยบอกว่าน่าจะเป็นพืชอะไร ตอบภาษาไทยไม่เกิน 2 บรรทัด: ชื่อไทยที่ใช้ทั่วไป (ชื่อวิทยาศาสตร์) และความมั่นใจ (สูง/กลาง/ต่ำ) ถ้าไม่ใช่พืชหรือดูไม่ออกให้บอกตรงๆ`, { images: [blob], modelTier: "default" });
     const t = "AI คาดว่า: " + text.trim() + " (ต้องยืนยันกับหมอและตัวอย่างพืชจริง)";
     p.caption = p.caption?.trim() ? p.caption.trim() + "\n" + t : t; scheduleSave();
   } catch (err) { toast(AI_ERR[err?.code] || "AI ดูภาพไม่สำเร็จ ลองอีกครั้ง"); if (err?.code === "not_granted") sampleFn = null; }
@@ -3321,7 +3329,7 @@ render();
   downloads = await window.FH.use("downloads").catch(() => null);
   if (S.tab === "field" && !S.noteId) render();
   const s = await window.FH.use("sample").catch(() => null);
-  if (s) { sampleFn = s; try { sampleImages = !!(await s.limits())?.images; } catch {} if (S.draft) renderNote(); }
+  if (s) { sampleFn = s; try { sampleLimits = await s.limits(); sampleImages = !!sampleLimits?.images; } catch {} if (S.draft) renderNote(); }
 })();
 </script>
 
