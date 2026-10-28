@@ -503,7 +503,6 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
         <div class="eyebrow">คลังภูมิปัญญาหมอพื้นบ้าน · ต้นแบบ</div>
         <h1>สืบสาน</h1>
         <p class="lede">องค์ความรู้และทำเนียบหมอพื้นบ้าน ค้นวิธีดูแลจากอาการ ค้นหมอใกล้บ้าน และเก็บภูมิปัญญาจากการสัมภาษณ์หมอโดยตรง</p>
-        <div class="stats" id="stats"></div>
       </div>
     </div>
     <div id="auth" class="auth"></div>
@@ -1365,8 +1364,6 @@ function render() {
   document.body.classList.toggle("noting", !!inNote);
   $("#bar").hidden = !inNote;
   renderProvSelects();
-  const st = $("#stats");
-  if (st && S.ready >= 3) st.innerHTML = `<span class="stat">หมอพื้นบ้าน <b>${S.healers.length}</b> ท่าน</span><span class="stat">ตำรับ <b>${S.recipes.length}</b></span><span class="stat">ความรู้ทั่วไป <b>${S.general.length}</b></span><span class="stat"><b>${new Set(S.healers.map(h => provName(h.province)).filter(Boolean)).size}</b> จังหวัด</span>`;
   if (S.tab === "search") renderSearch();
   else if (S.tab === "field") inNote ? renderNote() : renderField();
   else if (S.tab === "lib") renderLib();
