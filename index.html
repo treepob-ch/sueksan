@@ -243,7 +243,7 @@ input:disabled, textarea:disabled, select:disabled { opacity: .75; }
 .stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .stat { font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 11px; color: var(--muted); }
 .stat b { color: var(--fg); font-variant-numeric: tabular-nums; font-weight: 600; }
-.fbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 10px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.fbar { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; gap: 10px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
 .fbar select { padding: 7px 8px; font-size: 14px; }
 @media (max-width: 820px) { .fbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 fieldset.grp { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; margin: 0; display: grid; gap: 10px; }
@@ -538,6 +538,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
     </div>
     <div class="tchips" id="typeChips" role="group" aria-label="กรองตามประเภทหมอ"></div>
     <div class="fbar" id="dirFilters" role="group" aria-label="ตัวกรองทำเนียบ">
+      <label for="fType">ประเภทหมอ<select id="fType" data-f="type"></select></label>
       <label for="provSelDir">จังหวัด<select id="provSelDir" class="provsel"></select></label>
       <label for="fDist">อำเภอ<select id="fDist" data-f="dist"></select></label>
       <label for="fSub">ตำบล<select id="fSub" data-f="sub"></select></label>
@@ -1209,6 +1210,7 @@ function renderDirFilters() {
   set("#fAward", opt("all", "ทั้งหมด") + opt("__lic", "มีใบประจำตัวหมอพื้นบ้าน", count("award", h => !!h.licenseNo)) + opt("__any", "มีรางวัลหรือตำแหน่ง", count("award", h => !!h.award)) + awards.map(a => opt(a, a, count("award", h => h.award === a))).join(""), S.f.award);
   set("#fMeth", opt("all", "ทุกกรรมวิธี") + METHODS.map(([k, l]) => opt(k, l, count("meth", h => arr(h.methods).includes(k)))).join(""), S.f.meth);
   const tc = t => count("type", h => htypesOf(h).includes(t));
+  set("#fType", opt("all", "ทุกประเภท") + HTYPES.map(t => opt(t, t, tc(t))).join(""), S.f.type);
   $("#typeChips").innerHTML = `<button type="button" data-htf="all" aria-pressed="${S.f.type === "all"}">ทั้งหมด <span class="n">${count("type", () => true)}</span></button>` +
     HTYPES.map(t => { const n = tc(t); return `<button type="button" data-htf="${esc(t)}" aria-pressed="${S.f.type === t}"${n || S.f.type === t ? "" : " disabled"}>${esc(t)} <span class="n">${n}</span></button>`; }).join("");
   $("#fClear").hidden = S.prov === "all" && Object.values(S.f).every(v => v === "all");
