@@ -119,6 +119,23 @@ button { font: inherit; cursor: pointer; }
 .pmimg { width: 100%; max-height: 560px; object-fit: contain; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
 .pmlinks { display: flex; flex-wrap: wrap; gap: 8px; }
 .tag.vid { background: var(--turmeric-soft); color: var(--turmeric); border-color: var(--turmeric); }
+.catnav button[aria-selected="true"] { background: var(--leaf); color: #fff; border-color: var(--leaf); }
+.catnav button[aria-selected="true"] b { color: #fff; }
+.pcard { padding: 14px 16px; display: grid; gap: 12px; grid-template-columns: minmax(0, 860px); }
+.pcard .phead { display: grid; gap: 4px; }
+.vbox { position: relative; aspect-ratio: 16 / 9; background: #10140f; border-radius: 12px; overflow: hidden; }
+.vbox iframe, .vbox video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+.vbox.empty { display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center; color: #c9d2c4; padding: 16px; background: repeating-linear-gradient(135deg, #1a2019 0 14px, #161c15 14px 28px); }
+.vbox.empty span { font-size: 34px; } .vbox.empty small { color: #9aa79e; max-width: 34ch; }
+.vlink { font-size: 13.5px; color: var(--indigo); justify-self: end; margin-top: -6px; }
+.chartbox { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
+.chartbox h4 { margin: 0; font-size: 15.5px; }
+.chartbox .none { margin: 0; color: var(--muted); font-size: 14px; }
+.pmore { border-top: 1px solid var(--line); padding-top: 10px; }
+.pmore > summary { cursor: pointer; color: var(--indigo); font-size: 14px; list-style: none; }
+.pmore > summary::-webkit-details-marker { display: none; }
+.pmore[open] .o, .pmore:not([open]) .c { display: none; }
+.pmore .body { padding: 10px 0 0; }
 .catnav { display: flex; flex-wrap: wrap; gap: 8px; }
 .catnav button { font: inherit; cursor: pointer;  text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 14.5px; }
 .catnav button b { color: var(--leaf); margin-left: 4px; }
@@ -980,11 +997,40 @@ async function storeMedia(f, w) {
   }
   if (mime === "application/pdf") {
     if (f.size > VMAX) throw "ไฟล์ใหญ่เกิน 20 MB";
-    if (assets) { try { const r = await assets.upload(f, { type: mime }); return { asset: r.id, name: f.name, mime, size: f.size }; } catch {} }
-    if (f.size <= 400000) return { src: await fileToDataUrl(f), name: f.name, mime, size: f.size };
+    let prev = null;
+    try { const im = (await readPdf(f, 1)).images[0]; if (im) { if (assets) { try { prev = { asset: (await assets.upload(im, { type: "image/jpeg" })).id }; } catch {} } if (!prev) prev = { src: (await downscale(im, 1200, 0.75)).dataUrl() }; } } catch {}
+    if (assets) { try { const r = await assets.upload(f, { type: mime }); return { asset: r.id, name: f.name, mime, size: f.size, prev }; } catch {} }
+    if (f.size <= 400000) return { src: await fileToDataUrl(f), name: f.name, mime, size: f.size, prev };
     throw "PDF ใหญ่เกินสำหรับโหมดนี้ ใส่เป็นลิงก์แทน";
   }
   throw "ใช้ไฟล์ภาพหรือ PDF";
+}
+// ลิงก์วิดีโอ → ตัวเล่นในหน้า (YouTube, Google Drive, Facebook, ไฟล์ .mp4)
+function embedOf(u) {
+  u = String(u || "").trim(); if (!okUrl(u)) return null; let m;
+  if ((m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i.exec(u))) return { src: "https://www.youtube-nocookie.com/embed/" + m[1] + "?rel=0", site: "YouTube" };
+  if ((m = /drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]{10,})/i.exec(u))) return { src: "https://drive.google.com/file/d/" + m[1] + "/preview", site: "Google Drive" };
+  if (/facebook\.com\/.+\/videos\/|facebook\.com\/watch|fb\.watch\//i.test(u)) return { src: "https://www.facebook.com/plugins/video.php?" + new URLSearchParams({ show_text: "false", href: u }), site: "Facebook" };
+  if (/\.(mp4|webm|m4v)(\?|$)/i.test(u)) return { video: u, site: "ไฟล์วิดีโอ" };
+  return { link: u, site: "เว็บไซต์ต้นทาง" };
+}
+function playerHtml(it) {
+  if (it.video?.asset) return `<div class="vbox"><video controls preload="metadata" playsinline src="/_blob/${encodeURIComponent(it.video.asset)}"></video></div>`;
+  const e = embedOf(it.videoUrl);
+  if (!e) return `<div class="vbox empty"><span>🎬</span><b>ยังไม่มีวิดีโอสาธิต</b>${isStaff() ? `<small>เพิ่มลิงก์หรือคลิปได้ในแฟ้มบันทึก หัวข้อ “สื่อประกอบหัตถการ”</small>` : ""}</div>`;
+  const open = `<a class="vlink" href="${esc(it.videoUrl)}" target="_blank" rel="noopener">เปิดวิดีโอใน ${e.site} ↗</a>`;
+  if (e.video) return `<div class="vbox"><video controls preload="metadata" playsinline src="${esc(e.video)}"></video></div>${open}`;
+  if (e.link) return `<div class="vbox empty"><span>▶</span><b>วิดีโอนี้เล่นในหน้าไม่ได้</b><a class="btn primary" href="${esc(e.link)}" target="_blank" rel="noopener">เปิดดูวิดีโอ ↗</a></div>`;
+  return `<div class="vbox"><iframe src="${esc(e.src)}" title="วิดีโอสาธิต ${esc(it.name || "")}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${open}`;
+}
+function chartHtml(it) {
+  const c = it.chart, src = x => x?.asset ? "/_blob/" + encodeURIComponent(x.asset) : esc(x?.src || "");
+  let inner = "";
+  if (c?.mime?.startsWith("image/")) inner = `<img class="pmimg" alt="แผนนวด ${esc(it.name || "")}" src="${src(c)}">`;
+  else if (c) inner = (c.prev ? `<img class="pmimg" alt="แผนนวด ${esc(it.name || "")} หน้าแรก" src="${src(c.prev)}">` : "")
+    + `<div class="pmlinks">${c.asset ? `<a class="btn" href="/_blob/${encodeURIComponent(c.asset)}" target="_blank" rel="noopener">📄 เปิดแผนนวดฉบับเต็ม (PDF)</a>` : `<button class="btn" type="button" data-pmopen="${esc(it.id || "")}">📄 เปิดแผนนวดฉบับเต็ม (PDF)</button>`}</div>`;
+  if (okUrl(it.chartUrl)) inner += `<div class="pmlinks"><a class="btn" href="${esc(it.chartUrl)}" target="_blank" rel="noopener">🗺️ เปิดแผนนวด (ลิงก์) ↗</a></div>`;
+  return `<div class="chartbox"><h4>🗺️ แผนนวด</h4>${inner || `<p class="none">ยังไม่มีแผนนวด</p>`}</div>`;
 }
 function mediaView(it) {
   if (!hasMedia(it)) return "";
@@ -1145,18 +1191,23 @@ function researchCard(it) {
     <div class="links">${file ? `<a class="btn" href="${file}" target="_blank" rel="noopener">📄 เปิดไฟล์${it.fileName ? " " + esc(it.fileName) : ""}</a>` : ""}${/^https?:\/\//i.test(it.url || "") ? `<a class="btn" href="${esc(it.url)}" target="_blank" rel="noopener">🔗 เปิดลิงก์</a>` : ""}</div>
   </article>`;
 }
-function recipeCard(it, showOwner = true) {
+function recipeCard(it, showOwner = true, proc = false) {
   if (it.kind === "research") return researchCard(it);
   const h = it.kind === "recipe" ? hById(it.healerId) : null;
   const ev = it.evidence || (it.kind === "general" ? "official" : "folk");
   const syms = String(it.symptoms || "").split(/[,،\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 6);
   const body = it.kind === "recipe" || it.kind === "text"
-    ? rfield(it, "ingredients", "ส่วนประกอบ") + rfield(it, "properties", "สรรพคุณ") + rfield(it, "preparation", "วิธีทำ") + rfield(it, "usage", "วิธีใช้ / วิธีรับประทาน") + rfield(it, "caution", "ข้อควรระวัง", "warn") + (it.kind === "recipe" ? mediaView(it) : "")
+    ? rfield(it, "ingredients", "ส่วนประกอบ") + rfield(it, "properties", "สรรพคุณ") + rfield(it, "preparation", "วิธีทำ") + rfield(it, "usage", "วิธีใช้ / วิธีรับประทาน") + rfield(it, "caution", "ข้อควรระวัง", "warn") + (it.kind === "recipe" && !proc ? mediaView(it) : "")
       + (it.kind === "text" ? srcLine(it.source || "ไม่ระบุชื่อเอกสาร", "") : "")
       + (it.hash ? `<div class="src">จากแบบ ม.บ.1-1 ของหมอพื้นบ้านที่ได้รับการรับรองแล้ว${h?.licenseNo ? " (หนังสือรับรองเลขที่ " + esc(h.licenseNo) + ")" : ""} · รหัสยืนยันความถูกต้อง <code>${esc(it.hash.slice(0, 16))}…</code></div>` : "")
     : field("วิธีใช้", it.howto) + field("ข้อควรระวัง", it.caution, "warn") + field("เมื่อไรควรพบแพทย์", it.seeDoctor, "doc") + srcLine(it.sourceTitle, it.sourceUrl);
   const owner = h && showOwner ? `<div class="owner">ตำรับของ <button class="link" type="button" data-act="openHealer" data-id="${h.id}">${esc(h.name)}</button> · ${esc(h.healerType || "")}${h.province ? " · " + esc(h.province) : ""}</div>` : "";
   const acts = isStaff() && it.kind === "recipe" && (isAdmin() || it.fromField) ? `<div class="acts">${it.fromField && S.fieldOk ? `<button class="btn" type="button" data-nact="open" data-id="${it.fromField}">เปิดแฟ้มบันทึก</button>` : ""}${isAdmin() && !it.fromField ? `<button class="btn" type="button" data-act="editRecipe" data-id="${it.id}">แก้ไขตำรับ</button><span class="sp"></span>${delCtl("recipes", it.id)}` : ""}</div>` : "";
+  if (proc) return `<article class="card pcard" data-id="${it.id}">
+    <div class="phead"><span class="name">${hl(it.name)}</span><div class="tags">${it.types.map(t => `<span class="tag">${esc(ML[t] || "อื่น ๆ")}</span>`).join("")}<span class="ev ${ev}">${EV[ev]}</span></div>${it.summary ? `<span class="sum">${hl(it.summary)}</span>` : ""}</div>
+    ${playerHtml(it)}${chartHtml(it)}
+    <details class="pmore"${S.open.has(it.id) ? " open" : ""}><summary><span class="o">ดูวิธีทำ ข้อควรระวัง และรายละเอียด ▾</span><span class="c">ย่อรายละเอียด ▴</span></summary>
+    <div class="body">${body}<div class="askrow"><button class="link" type="button" data-act="ask" data-topic="${esc(it.name)}" data-purpose="research">สนใจศึกษาหัตถการนี้ ติดต่อเจ้าหน้าที่ →</button></div>${acts}</div></details></article>`;
   return `<details class="card" data-id="${it.id}"${S.open.has(it.id) ? " open" : ""}>
     <summary><div class="top"><span class="name">${hl(it.name)}</span><span class="more"><span class="o">ดูรายละเอียด ▾</span><span class="c">ย่อ ▴</span></span></div>
       <div class="tags">${it.kind === "recipe" && showOwner ? `<span class="tag cat">${RCL[recCat(it)]}</span>` : ""}${it.kind === "recipe" && (it.video?.asset || okUrl(it.videoUrl)) ? `<span class="tag vid">🎬 มีวิดีโอ</span>` : ""}${it.types.map(t => `<span class="tag">${esc(ML[t] || "อื่น ๆ")}</span>`).join("")}<span class="ev ${ev}">${EV[ev]}</span>${it.kind === "recipe" ? "" : it.kind === "text" ? `<span class="tag s">ใช้ได้ทุกพื้นที่</span>` : `<span class="tag s">ความรู้ทั่วไป · ใช้ได้ทุกพื้นที่</span>`}${it.matched?.length && symTerms().length > 1 ? `<span class="tag hit">ตรงกับ ${esc(it.matched.join(", "))}</span>` : ""}${syms.map(s => `<span class="tag s">${hl(s)}</span>`).join("")}</div>
@@ -1411,7 +1462,7 @@ function renderHealer() {
         ${(() => { const dn = S.fieldOk ? S.notes.find(x => x.origin === "document" && x.healerId === h.id) : null; return dn ? `<div><button class="btn" type="button" data-nact="open" data-id="${dn.id}">ดูบันทึกในคลัง</button></div>` : ""; })()}
         ${nNotes ? `<div class="privacy">มีบันทึกของหมอท่านนี้ที่ยังไม่เข้าคลัง ${nNotes} รายการ ดูได้ในแท็บ “บันทึกหมอที่ได้รับรอง”</div>` : ""}` : ""}
     </div>
-    ${rs.length ? `<nav class="catnav" aria-label="หมวดภูมิปัญญา">${catCount(rs).map(([k, l, c]) => `<button type="button" data-catjump="${k}">${l} <b>${c}</b></button>`).join("")}</nav>` + RCATS.map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return g.length ? `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${d}</small></h2>${g.map(r => recipeCard(r, false)).join("")}</section>` : ""; }).join("")
+    ${rs.length ? (() => { const cc = catCount(rs), sel = cc.some(x => x[0] === S.hcat) ? S.hcat : "all"; return `<nav class="catnav" id="catnav" role="tablist" aria-label="หมวดภูมิปัญญา"><button type="button" role="tab" data-catjump="all" aria-selected="${sel === "all"}">ทั้งหมด <b>${rs.length}</b></button>${cc.map(([k, l, c]) => `<button type="button" role="tab" data-catjump="${k}" aria-selected="${sel === k}">${k === "proc" ? "🎬 " : ""}${l} <b>${c}</b></button>`).join("")}</nav>` + RCATS.filter(([k]) => sel === "all" || sel === k).map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return g.length ? `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${k === "proc" ? "ดูวิดีโอสาธิตและแผนนวด" : d}</small></h2>${g.map(r => recipeCard(r, false, k === "proc")).join("")}</section>` : ""; }).join(""); })()
       : `<section class="group"><h2>ตำรับยาและหัตถการ</h2><div class="empty">ยังไม่มีข้อมูลตำรับยาหรือหัตถการของหมอท่านนี้</div></section>`}`;
 }
 
@@ -1569,7 +1620,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.sym) { const v = t.dataset.sym; S.syms = S.syms.includes(v) ? S.syms.filter(x => x !== v) : [...S.syms, v]; render(); return; }
   if (t.dataset.m) { if (!t.disabled) { S.method = t.dataset.m; render(); } return; }
   const a = t.dataset.act, id = t.dataset.id;
-  if (a === "openHealer") { e.preventDefault(); if (S.noteId) await leaveNote(); S.tab = "dir"; S.healer = id; S.del = null; render(); window.scrollTo({ top: 0 }); }
+  if (a === "openHealer") { e.preventDefault(); if (S.noteId) await leaveNote(); S.tab = "dir"; S.healer = id; S.hcat = "all"; S.del = null; render(); window.scrollTo({ top: 0 }); }
   if (a === "back") { S.healer = null; render(); }
   if (a === "editHealer") openForm("healers", hById(id));
   if (a === "addRecipe") openForm("recipes", { healerId: id, methods: arr(hById(id)?.methods), evidence: "folk" });
@@ -1615,7 +1666,7 @@ document.addEventListener("click", async e => {
   const o = e.target.closest("[data-pmopen]");
   if (o) { const r = S.recipes.find(x => x.id === o.dataset.pmopen); if (!r?.chart?.src) return; const b = await (await fetch(r.chart.src)).blob(); window.open(URL.createObjectURL(b), "_blank"); }
 });
-document.addEventListener("click", e => { const b = e.target.closest("[data-catjump]"); if (b) document.getElementById("cat-" + b.dataset.catjump)?.scrollIntoView({ behavior: "smooth", block: "start" }); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-catjump]"); if (!b) return; S.hcat = b.dataset.catjump; const y = $("#catnav")?.getBoundingClientRect().top; renderHealer(); const n = $("#catnav"); if (n && y != null) window.scrollBy(0, n.getBoundingClientRect().top - y); });
 $("#q").addEventListener("input", e => { S.q = e.target.value; $("#clearQ").hidden = !S.q; render(); });
 $("#q").addEventListener("keydown", e => {
   if (e.key !== "Enter" || e.isComposing) return;
@@ -1627,7 +1678,7 @@ $("#q").addEventListener("keydown", e => {
 $("#dq").addEventListener("input", e => { S.dq = e.target.value; $("#clearDq").hidden = !S.dq; render(); });
 $("#clearDq").addEventListener("click", () => { S.dq = ""; $("#dq").value = ""; $("#clearDq").hidden = true; $("#dq").focus(); render(); });
 $("#clearQ").addEventListener("click", () => { S.q = ""; $("#q").value = ""; $("#clearQ").hidden = true; render(); });
-document.addEventListener("toggle", e => { const d = e.target; if (d.classList?.contains("card")) d.open ? S.open.add(d.dataset.id) : S.open.delete(d.dataset.id); }, true);
+document.addEventListener("toggle", e => { const d = e.target, id = d.classList?.contains("card") ? d.dataset.id : d.classList?.contains("pmore") ? d.closest(".pcard")?.dataset.id : null; if (id) d.open ? S.open.add(id) : S.open.delete(id); }, true);
 function showNotice(h) { const n = $("#notice"); n.innerHTML = h; n.hidden = !h; }
 function renderAuth() {
   const a = $("#auth");
