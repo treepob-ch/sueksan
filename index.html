@@ -212,6 +212,22 @@ input:disabled, textarea:disabled, select:disabled { opacity: .75; }
 .irow .h { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
 .irow .im { font-size: 13.5px; color: var(--muted); }
 .irow p { margin: 0; white-space: pre-wrap; }
+.kpihead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.kpihead h2 { font-size: 16px; margin: 0; }
+.kpihead em { font-style: normal; font-size: 12.5px; color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: 1px 10px; white-space: nowrap; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 12px 18px; display: grid; gap: 2px; position: relative; overflow: hidden; min-width: 0; }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--c); }
+.kpi b { font-family: var(--font-display); font-size: 32px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 14px; color: var(--muted); }
+.kpi small { font-size: 12.5px; color: var(--muted); }
+@media (max-width: 640px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px 8px 14px; }
+  .kpi b { font-size: 22px; order: -1; }
+  .kpi span { font-size: 13px; line-height: 1.3; }
+  .kpi small { display: none; }
+}
 .hcard .lic { font-size: 12.5px; color: var(--leaf); font-weight: 600; }
 .ava { flex: none; width: 46px; height: 46px; border-radius: 50%; background: var(--turmeric-soft); color: var(--turmeric); display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 20px; }
 .ava.lg { width: 64px; height: 64px; font-size: 28px; }
@@ -534,6 +550,7 @@ label.chk input { margin-top: 5px; width: 17px; height: 17px; flex: none; }
   </section>
 
   <section id="v-dir" hidden style="display:grid;gap:16px">
+    <div id="dirKpi" aria-live="polite"></div>
     <div class="search" role="search">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="dq" type="text" placeholder="ค้นหาหมอ: ชื่อ ประเภทหมอ รางวัล กรรมวิธี สถานที่" autocomplete="off" aria-label="ค้นหาหมอพื้นบ้าน">
@@ -1229,12 +1246,24 @@ function filterLabel() {
   if (S.f.meth !== "all") parts.push(ML[S.f.meth]);
   return parts.length ? " · " + parts.join(" · ") : "";
 }
+// ภาพรวมคลังภูมิปัญญา: summary cards above the directory search, following the current filters
+function renderKpi(list, filtered) {
+  const el = $("#dirKpi"); if (!el) return;
+  const ids = new Set(list.map(h => h.id));
+  const nRec = S.recipes.filter(r => ids.has(r.healerId)).length;
+  const nProv = new Set(list.map(h => provName(h.province)).filter(Boolean)).size;
+  const nLic = list.filter(h => h.licenseNo).length;
+  const card = (c, label, n, sub) => `<div class="kpi" style="--c:${c}"><span>${label}</span><b>${n}</b><small>${sub}</small></div>`;
+  el.innerHTML = `<div class="kpihead"><h2>ภาพรวมคลังภูมิปัญญา${filtered ? " · ตามตัวกรอง" : ""}</h2>${S.healers.some(h => h.sample) ? "<em>ข้อมูลสาธิต</em>" : ""}</div>
+    <div class="kpis">${card("var(--indigo)", "หมอพื้นบ้าน", list.length, filtered ? `จาก ${S.healers.length} ท่านในทำเนียบ` : "ที่ยินยอมให้เผยแพร่")}${card("var(--turmeric)", "ตำรับยาและวิธีรักษา", nRec, "จากหมอในรายชื่อ")}${card("var(--leaf)", "จังหวัด", nProv, "ที่มีหมอในรายชื่อ")}${card("#7a4f9a", "มีใบประจำตัวหมอ", nLic, `จาก ${list.length} ท่าน`)}</div>`;
+}
 function renderDir() {
   if (S.ready < 3) return;
   const terms = norm(S.dq).split(/\s+/).filter(Boolean);
   const hay = h => squash([h.name, h.province, h.district, h.subdistrict, h.servicePlace, h.healerType, h.award, h.licenseNo, h.proposer, arr(h.methods).map(m => ML[m]).join(" "), "การ" + arr(h.methods).map(m => ML[m]).join(" ")].join(" "));
   renderDirFilters();
   const list = S.healers.filter(h => dirOK(h) && terms.every(t => hay(h).includes(squash(t))));
+  renderKpi(list, terms.length || S.prov !== "all" || Object.values(S.f).some(v => v !== "all"));
   const by = {};
   list.forEach(h => htypesOf(h).forEach(t => { if (S.f.type === "all" || t === S.f.type) (by[t] ||= []).push(h); }));
   const types = Object.keys(by).sort((a, b) => { const ia = HTYPES.indexOf(a), ib = HTYPES.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, "th"); });
