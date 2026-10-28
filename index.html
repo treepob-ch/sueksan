@@ -105,7 +105,15 @@ button { font: inherit; cursor: pointer; }
 
 .status { font-size: 14px; color: var(--muted); }
 .group { display: flex; flex-direction: column; gap: 8px; }
+.tag.cat { background: var(--leaf-soft); color: var(--leaf); border: 1px solid var(--leaf); font-weight: 600; }
 .group h2 { font-family: var(--font-display); font-size: 20px; margin: 10px 0 0; display: flex; gap: 10px; align-items: baseline; }
+.group[id^="cat-"] { scroll-margin-top: 80px; }
+.group[id^="cat-"] h2 { flex-wrap: wrap; row-gap: 2px; white-space: nowrap; }
+.group[id^="cat-"] h2 small { white-space: normal; }
+.catnav { display: flex; flex-wrap: wrap; gap: 8px; }
+.catnav button { font: inherit; cursor: pointer;  text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 14.5px; }
+.catnav button b { color: var(--leaf); margin-left: 4px; }
+.catnav button:hover { border-color: var(--leaf); }
 .group h2 small { font-family: var(--font-body); font-size: 13px; color: var(--muted); font-weight: 400; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
@@ -923,6 +931,17 @@ window.__SEED__ = {"healers": {"boonta-sanjai": {"award": "", "consent": "agency
 <script>
 const METHODS = [["massage","การนวด"],["herb","สมุนไพร"],["ritual","พิธีกรรม"],["bone","รักษากระดูก"],["diagnosis","การวินิจฉัย"],["other","อื่น ๆ"]];
 const ML = Object.fromEntries(METHODS);
+// หมวดของภูมิปัญญาแต่ละรายการ: ตำรับยา / หัตถการ / อื่น ๆ (ตั้งเองได้ ถ้าไม่ตั้งจะจัดจากด้านที่เลือก)
+const RCATS = [["drug","ตำรับยา","สมุนไพร ยาต้ม ยาหม่อง น้ำมัน ลูกประคบ"],["proc","หัตถการ","นวด กดจุด ตอกเส้น ย่ำขาง จัดกระดูก"],["other","อื่น ๆ","พิธีกรรม การวินิจฉัย ผลิตภัณฑ์อื่น"]];
+const RCL = Object.fromEntries(RCATS);
+function recCat(r) {
+  if (RCL[r?.cat]) return r.cat;
+  const m = arr(r?.methods), nm = String(r?.name || "").trim();
+  if (m.includes("herb") && !/^(นวด|ตอก|กดจุด|ย่ำ|จับเส้น)/.test(nm)) return "drug";
+  if (m.includes("massage") || m.includes("bone")) return "proc";
+  return m.length ? "other" : "drug";
+}
+const catCount = rs => RCATS.map(([k, l]) => [k, l, rs.filter(r => recCat(r) === k).length]).filter(x => x[2]);
 ML.research = "งานวิจัย";
 // the six official folk-healer categories (ระเบียบกระทรวงสาธารณสุข ว่าด้วยการรับรองหมอพื้นบ้าน)
 const HTYPES = ["หมอตำแย","หมอยาสมุนไพร","หมอนวดพื้นบ้าน","หมอกระดูก","หมอรักษาสัตว์พิษกัด","หมอพิธีกรรม"];
@@ -1084,7 +1103,7 @@ function recipeCard(it, showOwner = true) {
   const acts = isStaff() && it.kind === "recipe" && (isAdmin() || it.fromField) ? `<div class="acts">${it.fromField && S.fieldOk ? `<button class="btn" type="button" data-nact="open" data-id="${it.fromField}">เปิดแฟ้มบันทึก</button>` : ""}${isAdmin() && !it.fromField ? `<button class="btn" type="button" data-act="editRecipe" data-id="${it.id}">แก้ไขตำรับ</button><span class="sp"></span>${delCtl("recipes", it.id)}` : ""}</div>` : "";
   return `<details class="card" data-id="${it.id}"${S.open.has(it.id) ? " open" : ""}>
     <summary><div class="top"><span class="name">${hl(it.name)}</span><span class="more"><span class="o">ดูรายละเอียด ▾</span><span class="c">ย่อ ▴</span></span></div>
-      <div class="tags">${it.types.map(t => `<span class="tag">${esc(ML[t] || "อื่น ๆ")}</span>`).join("")}<span class="ev ${ev}">${EV[ev]}</span>${it.kind === "recipe" ? "" : it.kind === "text" ? `<span class="tag s">ใช้ได้ทุกพื้นที่</span>` : `<span class="tag s">ความรู้ทั่วไป · ใช้ได้ทุกพื้นที่</span>`}${it.matched?.length && symTerms().length > 1 ? `<span class="tag hit">ตรงกับ ${esc(it.matched.join(", "))}</span>` : ""}${syms.map(s => `<span class="tag s">${hl(s)}</span>`).join("")}</div>
+      <div class="tags">${it.kind === "recipe" && showOwner ? `<span class="tag cat">${RCL[recCat(it)]}</span>` : ""}${it.types.map(t => `<span class="tag">${esc(ML[t] || "อื่น ๆ")}</span>`).join("")}<span class="ev ${ev}">${EV[ev]}</span>${it.kind === "recipe" ? "" : it.kind === "text" ? `<span class="tag s">ใช้ได้ทุกพื้นที่</span>` : `<span class="tag s">ความรู้ทั่วไป · ใช้ได้ทุกพื้นที่</span>`}${it.matched?.length && symTerms().length > 1 ? `<span class="tag hit">ตรงกับ ${esc(it.matched.join(", "))}</span>` : ""}${syms.map(s => `<span class="tag s">${hl(s)}</span>`).join("")}</div>
       ${it.summary ? `<span class="sum">${hl(it.summary)}</span>` : ""}${owner}
     </summary>
     <div class="body">${body}${it.kind === "recipe" || it.kind === "text" ? `<div class="askrow"><button class="link" type="button" data-act="ask" data-topic="${esc(it.name)}" data-purpose="research">สนใจศึกษาตำรับนี้ ติดต่อเจ้าหน้าที่ →</button></div>` : ""}${acts}</div></details>`;
@@ -1274,10 +1293,10 @@ function renderDir() {
   if (!list.length) { $("#dir").innerHTML = `<div class="empty"><strong>ไม่พบหมอที่ตรงกับเงื่อนไข</strong>ลองลดตัวกรอง หรือค้นด้วยชื่อ อำเภอ ตำบล หรือประเภทหมอ</div>`; return; }
   $("#dir").innerHTML = types.map(t => `<section class="group"><h2>${esc(t)}<small>${by[t].length} ท่าน</small></h2><div class="hgrid">${
     by[t].sort((a, b) => String(a.name).localeCompare(String(b.name), "th")).map(h => {
-      const n = S.recipes.filter(r => r.healerId === h.id).length;
+      const cc = catCount(S.recipes.filter(r => r.healerId === h.id));
       return `<button class="hcard" type="button" data-act="openHealer" data-id="${h.id}">${avatarHTML(h, 64)}<span class="info">
         <span class="nm">${esc(h.name)}</span>${h.award ? `<span class="aw">🏅 ${esc(h.award)}</span>` : ""}
-        <span class="mt">📍 ${esc(locLine(h) || "-")} · ตำรับ ${n}</span>
+        <span class="mt">📍 ${esc(locLine(h) || "-")}${cc.map(([, l, c]) => ` · ${l} ${c}`).join("")}</span>
         ${h.licenseNo ? `<span class="lic">✓ ใบประจำตัว ${esc(h.licenseNo)}</span>` : ""}
         ${h.expertise ? `<span class="ex">${esc(h.expertise)}</span>` : ""}</span></button>`;
     }).join("")}</div></section>`).join("");
@@ -1336,7 +1355,8 @@ function renderHealer() {
         ${(() => { const dn = S.fieldOk ? S.notes.find(x => x.origin === "document" && x.healerId === h.id) : null; return dn ? `<div><button class="btn" type="button" data-nact="open" data-id="${dn.id}">ดูบันทึกในคลัง</button></div>` : ""; })()}
         ${nNotes ? `<div class="privacy">มีบันทึกของหมอท่านนี้ที่ยังไม่เข้าคลัง ${nNotes} รายการ ดูได้ในแท็บ “บันทึกหมอที่ได้รับรอง”</div>` : ""}` : ""}
     </div>
-    <section class="group"><h2>ตำรับยาและวิธีรักษา<small>${rs.length} ตำรับ</small></h2>${rs.length ? rs.map(r => recipeCard(r, false)).join("") : `<div class="empty">ยังไม่มีตำรับยาของหมอท่านนี้</div>`}</section>`;
+    ${rs.length ? `<nav class="catnav" aria-label="หมวดภูมิปัญญา">${catCount(rs).map(([k, l, c]) => `<button type="button" data-catjump="${k}">${l} <b>${c}</b></button>`).join("")}</nav>` + RCATS.map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return g.length ? `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${d}</small></h2>${g.map(r => recipeCard(r, false)).join("")}</section>` : ""; }).join("")
+      : `<section class="group"><h2>ตำรับยาและหัตถการ</h2><div class="empty">ยังไม่มีข้อมูลตำรับยาหรือหัตถการของหมอท่านนี้</div></section>`}`;
 }
 
 function render() {
@@ -1416,7 +1436,7 @@ const profileOf = h => {
   return p;
 };
 const HF = [...HPF, ["consent","การยินยอมเผยแพร่","consent"],["sourceTitle","แหล่งที่มา","text"],["sourceUrl","ลิงก์แหล่งที่มา","url"]];
-const RF = [["name","ชื่อตำรับ","text"],["methods","ด้าน","checks"],["ingredients","ส่วนประกอบ","area"],["properties","สรรพคุณ","area"],["symptoms","อาการที่ใช้ค้นหา (คั่นด้วยจุลภาค)","text"],["preparation","วิธีทำ","area"],["usage","วิธีใช้ / วิธีรับประทาน","area"],["caution","ข้อควรระวัง","area"],["evidence","ระดับหลักฐาน","evidence"]];
+const RF = [["name","ชื่อตำรับ / ชื่อวิธีรักษา","text"],["cat","หมวด","rcat"],["methods","ด้าน","checks"],["ingredients","ส่วนประกอบ","area"],["properties","สรรพคุณ","area"],["symptoms","อาการที่ใช้ค้นหา (คั่นด้วยจุลภาค)","text"],["preparation","วิธีทำ","area"],["usage","วิธีใช้ / วิธีรับประทาน","area"],["caution","ข้อควรระวัง","area"],["evidence","ระดับหลักฐาน","evidence"]];
 function input([k, l, t], o) {
   const v = esc(o[k] ?? ""), id = "f_" + k;
   if (t === "area") return `<label for="${id}">${l}<textarea id="${id}" name="${k}">${v}</textarea></label>`;
@@ -1424,13 +1444,14 @@ function input([k, l, t], o) {
   if (t === "consent" || t === "evidence") { const map = t === "consent" ? CONSENT : EV; return `<label for="${id}">${l}<select id="${id}" name="${k}">${Object.entries(map).map(([a, b]) => `<option value="${a}"${o[k] === a ? " selected" : ""}>${b}</option>`).join("")}</select></label>`; }
   if (t === "prefix") return `<label for="${id}">${l}<select id="${id}" name="${k}"><option value=""></option>${PREFIXES.map(x => `<option${o[k] === x ? " selected" : ""}>${x}</option>`).join("")}</select></label>`;
   if (t === "htypes") { const ts = typesOf(o[k]); return `<fieldset class="wide"><legend>${l}</legend><div class="opts">${HTYPES.map((x, i) => `<label for="${id}_${i}"><input type="checkbox" id="${id}_${i}" name="${k}" value="${esc(x)}"${ts.official.includes(x) ? " checked" : ""}> ${x}</label>`).join("")}</div><input type="hidden" name="${k}__extra" value="${esc(ts.extra.join(", "))}"></fieldset>`; }
+  if (t === "rcat") { const c = recCat(o); return `<label for="${id}">${l}<select id="${id}" name="${k}">${RCATS.map(([a, b, d]) => `<option value="${a}"${c === a ? " selected" : ""}>${b} · ${d}</option>`).join("")}</select></label>`; }
   if (t === "date") return `<label for="${id}">${l}<input type="date" id="${id}" name="${k}" value="${v}"></label>`;
   if (t === "photo") return `<div class="photoPick wide"><span id="f_photoPv">${avatarHTML(o, 84)}</span><span class="btns"><span class="btn filebtn">${okPhoto(o.photo) ? "เปลี่ยนภาพหมอ" : "เพิ่มภาพหมอ"}<input type="file" id="f_photoIn" accept="image/*" aria-label="เลือกภาพหมอ"></span><button class="btn" type="button" id="f_photoDel"${okPhoto(o.photo) ? "" : " hidden"}>ลบภาพ</button></span><input type="hidden" name="photo" id="f_photo" value="${okPhoto(o.photo) ? esc(o.photo) : ""}"><span class="help">ถ้าไม่มีภาพ ระบบจะแสดงภาพประกอบแทน</span></div>`;
   return `<label for="${id}">${l}<input type="${t === "url" ? "url" : t === "number" ? "number" : "text"}" id="${id}" name="${k}" value="${v}"${t === "number" ? ' inputmode="numeric" min="0"' : ""}></label>`;
 }
 function openForm(kind, o) {
   const spec = kind === "healers" ? HF : RF;
-  const title = (o.id ? "แก้ไข" : "เพิ่ม") + (kind === "healers" ? "ข้อมูลหมอ" : "ตำรับยา") + (kind === "recipes" && hById(o.healerId) ? " · " + hById(o.healerId).name : "");
+  const title = (o.id ? "แก้ไข" : "เพิ่ม") + (kind === "healers" ? "ข้อมูลหมอ" : "ตำรับยา / หัตถการ") + (kind === "recipes" && hById(o.healerId) ? " · " + hById(o.healerId).name : "");
   if (kind === "healers") o = { ...o, ...profileOf(o), id: o.id };
   const body0 = kind === "healers"
     ? input(["photo", HL.photo[0], "photo"], o) + HGROUPS.map(([gt, keys]) => `<fieldset class="grp"><legend>${gt}</legend><div class="row2">${keys.map(k => input([k, HL[k][0], HL[k][1]], o)).join("")}</div></fieldset>`).join("")
@@ -1517,6 +1538,7 @@ document.addEventListener("click", async e => {
   }
 });
 $("#addHealer").addEventListener("click", openChooser);
+document.addEventListener("click", e => { const b = e.target.closest("[data-catjump]"); if (b) document.getElementById("cat-" + b.dataset.catjump)?.scrollIntoView({ behavior: "smooth", block: "start" }); });
 $("#q").addEventListener("input", e => { S.q = e.target.value; $("#clearQ").hidden = !S.q; render(); });
 $("#q").addEventListener("keydown", e => {
   if (e.key !== "Enter" || e.isComposing) return;
