@@ -1004,14 +1004,18 @@ const mbStr = b => b ? " · " + (b / 1048576).toFixed(1) + " MB" : "";
 const blankMedia = () => ({ videoUrl: "", video: null, chartUrl: "", chart: null });
 const mediaOf = o => ({ ...blankMedia(), videoUrl: o?.videoUrl || "", video: o?.video || null, chartUrl: o?.chartUrl || "", chart: o?.chart || null });
 const hasMedia = it => !!(it?.video?.asset || okUrl(it?.videoUrl) || it?.chart || okUrl(it?.chartUrl));
-function pmHtml(m, dis, item = "") {
-  const row = (w, label, accept, help) => { const e = m[w]; return `<div class="pmrow"><span class="pml">${label}</span>${e ? `<span class="pmf">${w === "video" ? "🎬" : "🗺️"} ${esc(e.name || "ไฟล์")}${mbStr(e.size)}</span>${dis ? "" : `<button class="btn" type="button" data-pmdel="${w}">ลบไฟล์</button>`}` : ""}${dis ? "" : `<span class="btn filebtn">${e ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" data-pmin="${w}" accept="${accept}" aria-label="${label}"></span>`}<span class="help">${help}</span></div>`; };
-  return `<fieldset class="pm wide"${item ? ` data-pmitem="${esc(item)}"` : ""}><legend>สื่อประกอบหัตถการ</legend>
+// ไฟล์แนบของแต่ละหมวด: หัตถการ = แผนนวด, อื่น ๆ = ไฟล์แนบทั่วไป
+const FILEL = { proc: ["🗺️", "แผนนวด", "ภาพหรือ PDF เช่น แผนภาพจุดนวด แนวเส้น ลำดับท่า"], other: ["📎", "ไฟล์แนบ", "ภาพหรือ PDF เช่น ภาพประกอบ ขั้นตอน เอกสารที่เกี่ยวข้อง"], drug: ["📎", "ไฟล์แนบ", "ภาพหรือ PDF"] };
+const MEDIACATS = new Set(["proc", "other"]);
+function pmHtml(m, dis, item = "", cat = "proc") {
+  const [fi, fl, fh] = FILEL[cat] || FILEL.proc;
+  const row = (w, label, accept, help) => { const e = m[w]; return `<div class="pmrow"><span class="pml">${label}</span>${e ? `<span class="pmf">${w === "video" ? "🎬" : fi} ${esc(e.name || "ไฟล์")}${mbStr(e.size)}</span>${dis ? "" : `<button class="btn" type="button" data-pmdel="${w}">ลบไฟล์</button>`}` : ""}${dis ? "" : `<span class="btn filebtn">${e ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" data-pmin="${w}" accept="${accept}" aria-label="${label}"></span>`}<span class="help">${help}</span></div>`; };
+  return `<fieldset class="pm wide"${item ? ` data-pmitem="${esc(item)}"` : ""} data-pmcat="${cat}"><legend>${cat === "proc" ? "สื่อประกอบหัตถการ" : "วิดีโอและไฟล์แนบ"}</legend>
     <div class="pmslot"><b>🎬 วิดีโอสาธิต</b>
       <input type="url" data-pmk="videoUrl" value="${esc(m.videoUrl || "")}" placeholder="วางลิงก์วิดีโอ เช่น YouTube หรือ Google Drive" aria-label="ลิงก์วิดีโอสาธิต"${dis}>
       ${assets ? row("video", "หรือ", "video/*", "อัปโหลดคลิป MP4 ไม่เกิน 20 MB") : ""}</div>
-    <div class="pmslot"><b>🗺️ ไฟล์แผนนวด</b>${row("chart", "", "image/*,application/pdf", "ภาพหรือ PDF เช่น แผนภาพจุดนวด แนวเส้น ลำดับท่า")}
-      ${m.chartUrl ? `<input type="url" data-pmk="chartUrl" value="${esc(m.chartUrl)}" aria-label="ลิงก์แผนนวด"${dis}>` : ""}</div>
+    <div class="pmslot"><b>${fi} ${cat === "proc" ? "ไฟล์แผนนวด" : fl}</b>${row("chart", "", "image/*,application/pdf", fh)}
+      ${m.chartUrl ? `<input type="url" data-pmk="chartUrl" value="${esc(m.chartUrl)}" aria-label="ลิงก์${fl}"${dis}>` : ""}</div>
   </fieldset>`;
 }
 async function storeMedia(f, w) {
@@ -1048,20 +1052,21 @@ function embedOf(u) {
 function playerHtml(it) {
   if (it.video?.asset) return `<div class="vbox"><video controls preload="metadata" playsinline src="/_blob/${encodeURIComponent(it.video.asset)}"></video></div>`;
   const e = embedOf(it.videoUrl);
-  if (!e) return `<div class="vbox empty"><span>🎬</span><b>ยังไม่มีวิดีโอสาธิต</b>${isStaff() ? `<small>เพิ่มลิงก์หรือคลิปได้ในแฟ้มบันทึก หัวข้อ “สื่อประกอบหัตถการ”</small>` : ""}</div>`;
+  if (!e) return `<div class="vbox empty"><span>🎬</span><b>ยังไม่มีวิดีโอ</b>${isStaff() ? `<small>เพิ่มลิงก์หรือคลิปได้ในแฟ้มบันทึก หัวข้อ 4</small>` : ""}</div>`;
   const open = `<a class="vlink" href="${esc(it.videoUrl)}" target="_blank" rel="noopener">เปิดวิดีโอใน ${e.site} ↗</a>`;
   if (e.video) return `<div class="vbox"><video controls preload="metadata" playsinline src="${esc(e.video)}"></video></div>${open}`;
   if (e.link) return `<div class="vbox empty"><span>▶</span><b>วิดีโอนี้เล่นในหน้าไม่ได้</b><a class="btn primary" href="${esc(e.link)}" target="_blank" rel="noopener">เปิดดูวิดีโอ ↗</a></div>`;
   return `<div class="vbox"><iframe src="${esc(e.src)}" title="วิดีโอสาธิต ${esc(it.name || "")}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${open}`;
 }
 function chartHtml(it) {
+  const [fi, fl] = FILEL[recCat(it)] || FILEL.proc;
   const c = it.chart, src = x => x?.asset ? "/_blob/" + encodeURIComponent(x.asset) : esc(x?.src || "");
   let inner = "";
-  if (c?.mime?.startsWith("image/")) inner = `<img class="pmimg" alt="แผนนวด ${esc(it.name || "")}" src="${src(c)}">`;
-  else if (c) inner = (c.prev ? `<img class="pmimg" alt="แผนนวด ${esc(it.name || "")} หน้าแรก" src="${src(c.prev)}">` : "")
-    + `<div class="pmlinks">${c.asset ? `<a class="btn" href="/_blob/${encodeURIComponent(c.asset)}" target="_blank" rel="noopener">📄 เปิดแผนนวดฉบับเต็ม (PDF)</a>` : `<button class="btn" type="button" data-pmopen="${esc(it.id || "")}">📄 เปิดแผนนวดฉบับเต็ม (PDF)</button>`}</div>`;
-  if (okUrl(it.chartUrl)) inner += `<div class="pmlinks"><a class="btn" href="${esc(it.chartUrl)}" target="_blank" rel="noopener">🗺️ เปิดแผนนวด (ลิงก์) ↗</a></div>`;
-  return `<div class="chartbox"><h4>🗺️ แผนนวด</h4>${inner || `<p class="none">ยังไม่มีแผนนวด</p>`}</div>`;
+  if (c?.mime?.startsWith("image/")) inner = `<img class="pmimg" alt="${fl} ${esc(it.name || "")}" src="${src(c)}">`;
+  else if (c) inner = (c.prev ? `<img class="pmimg" alt="${fl} ${esc(it.name || "")} หน้าแรก" src="${src(c.prev)}">` : "")
+    + `<div class="pmlinks">${c.asset ? `<a class="btn" href="/_blob/${encodeURIComponent(c.asset)}" target="_blank" rel="noopener">📄 เปิด${fl}ฉบับเต็ม (PDF)</a>` : `<button class="btn" type="button" data-pmopen="${esc(it.id || "")}">📄 เปิด${fl}ฉบับเต็ม (PDF)</button>`}</div>`;
+  if (okUrl(it.chartUrl)) inner += `<div class="pmlinks"><a class="btn" href="${esc(it.chartUrl)}" target="_blank" rel="noopener">${fi} เปิด${fl} (ลิงก์) ↗</a></div>`;
+  return `<div class="chartbox"><h4>${fi} ${fl}</h4>${inner || `<p class="none">ยังไม่มี${fl}</p>`}</div>`;
 }
 function mediaView(it) {
   if (!hasMedia(it)) return "";
@@ -1493,7 +1498,7 @@ function renderHealer() {
         ${(() => { const dn = S.fieldOk ? S.notes.find(x => x.origin === "document" && x.healerId === h.id) : null; return dn ? `<div><button class="btn" type="button" data-nact="open" data-id="${dn.id}">ดูบันทึกในคลัง</button></div>` : ""; })()}
         ${nNotes ? `<div class="privacy">มีบันทึกของหมอท่านนี้ที่ยังไม่เข้าคลัง ${nNotes} รายการ ดูได้ในแท็บ “บันทึกหมอที่ได้รับรอง”</div>` : ""}` : ""}
     </div>
-    ${(() => { const sel = RCATS.some(x => x[0] === S.hcat) ? S.hcat : "all", none = { drug: "ยังไม่มีตำรับยาของหมอท่านนี้", proc: "ยังไม่มีข้อมูลหัตถการของหมอท่านนี้ เช่น ท่านวด วิดีโอสาธิต หรือแผนนวด", other: "ยังไม่มีข้อมูลในหมวดนี้" }; return `<nav class="catnav" id="catnav" role="tablist" aria-label="หมวดภูมิปัญญา"><button type="button" role="tab" data-catjump="all" aria-selected="${sel === "all"}">ทั้งหมด <b>${rs.length}</b></button>${RCATS.map(([k, l]) => { const c = rs.filter(r => recCat(r) === k).length; return `<button type="button" role="tab" data-catjump="${k}" aria-selected="${sel === k}"${c ? "" : ' class="zero"'}>${k === "proc" ? "🎬 " : ""}${l} <b>${c}</b></button>`; }).join("")}</nav>` + RCATS.filter(([k]) => sel === "all" || sel === k).map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${k === "proc" ? "ดูวิดีโอสาธิตและแผนนวด" : d}</small></h2>${g.length ? g.map(r => recipeCard(r, false, k === "proc")).join("") : `<div class="empty catempty">${none[k]}${isStaff() ? `<small>${h.fromField && S.fieldOk ? "เพิ่มได้ที่ “แก้ไขข้อมูลหมอ (แฟ้มบันทึก)”" : isAdmin() ? "เพิ่มได้ที่ “+ เพิ่มตำรับจากเอกสาร”" : ""}</small>` : ""}</div>`}</section>`; }).join(""); })()}`;
+    ${(() => { const sel = RCATS.some(x => x[0] === S.hcat) ? S.hcat : "all", none = { drug: "ยังไม่มีตำรับยาของหมอท่านนี้", proc: "ยังไม่มีข้อมูลหัตถการของหมอท่านนี้ เช่น ท่านวด วิดีโอสาธิต หรือแผนนวด", other: "ยังไม่มีข้อมูลในหมวดนี้" }; return `<nav class="catnav" id="catnav" role="tablist" aria-label="หมวดภูมิปัญญา"><button type="button" role="tab" data-catjump="all" aria-selected="${sel === "all"}">ทั้งหมด <b>${rs.length}</b></button>${RCATS.map(([k, l]) => { const c = rs.filter(r => recCat(r) === k).length; return `<button type="button" role="tab" data-catjump="${k}" aria-selected="${sel === k}"${c ? "" : ' class="zero"'}>${k === "proc" ? "🎬 " : ""}${l} <b>${c}</b></button>`; }).join("")}</nav>` + RCATS.filter(([k]) => sel === "all" || sel === k).map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${k === "proc" ? "ดูวิดีโอสาธิตและแผนนวด" : k === "other" ? "ดูวิดีโอและไฟล์แนบ" : d}</small></h2>${g.length ? g.map(r => recipeCard(r, false, MEDIACATS.has(k))).join("") : `<div class="empty catempty">${none[k]}${isStaff() ? `<small>${h.fromField && S.fieldOk ? "เพิ่มได้ที่ “แก้ไขข้อมูลหมอ (แฟ้มบันทึก)”" : isAdmin() ? "เพิ่มได้ที่ “+ เพิ่มตำรับจากเอกสาร”" : ""}</small>` : ""}</div>`}</section>`; }).join(""); })()}`;
 }
 
 function render() {
@@ -1593,7 +1598,7 @@ function openForm(kind, o) {
   const body0 = kind === "healers"
     ? input(["photo", HL.photo[0], "photo"], o) + HGROUPS.map(([gt, keys]) => `<fieldset class="grp"><legend>${gt}</legend><div class="row2">${keys.map(k => input([k, HL[k][0], HL[k][1]], o)).join("")}</div></fieldset>`).join("")
       + `<fieldset class="grp"><legend>การยินยอมและแหล่งที่มา</legend><div class="row2">${HF.slice(HPF.length).map(f => input(f, o)).join("")}</div></fieldset>`
-    : spec.map(f => input(f, o)).join("") + `<div id="procMedia"${recCat(o) === "proc" || hasMedia(o) ? "" : " hidden"}>${pmHtml((FM = { m: mediaOf(o), after() {} }).m, "")}</div>`;
+    : spec.map(f => input(f, o)).join("") + `<div id="procMedia"${MEDIACATS.has(recCat(o)) || hasMedia(o) ? "" : " hidden"}>${pmHtml((FM = { m: mediaOf(o), after() {} }).m, "", "", recCat(o))}</div>`;
   $("#formSlot").innerHTML = `<form class="editor" id="editor" novalidate><h2>${esc(title)}</h2>${kind === "healers" && !o.id ? `<p class="help">ใช้สำหรับหมอที่มีข้อมูลในเอกสารเผยแพร่แล้ว ข้อมูลจะขึ้นทำเนียบทันที</p>` : ""}${body0}<p class="err" id="ferr"></p>
     <div class="acts" style="border:0;padding:0"><button class="btn primary" type="submit" id="saveBtn">บันทึก</button><button class="btn" type="button" id="cancelBtn">ยกเลิก</button></div></form>`;
   const f = $("#editor"); f.scrollIntoView({ block: "start" }); (f.querySelector("#f_personName") || f.querySelector("#f_name")).focus();
@@ -1604,7 +1609,7 @@ function openForm(kind, o) {
     $("#f_photoDel").onclick = () => { $("#f_photo").value = ""; showPv(); };
   }
   $("#cancelBtn").onclick = () => $("#formSlot").innerHTML = "";
-  if (kind === "recipes") f.querySelector("#f_cat").onchange = e => { $("#procMedia").hidden = e.target.value !== "proc" && !hasMedia(FM.m); };
+  if (kind === "recipes") f.querySelector("#f_cat").onchange = e => { const c = e.target.value, pm = $("#procMedia"); pm.hidden = !MEDIACATS.has(c) && !hasMedia(FM.m); pm.innerHTML = pmHtml(FM.m, "", "", c); };
   f.onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(f), data = {};
@@ -1719,7 +1724,7 @@ function pmTarget(el) {
   if (item !== "main" && !x) return null;
   return { m: x ? x.media : n.media, item, after() { n.updatedAt = Date.now(); scheduleSave(); refreshLive(); } };
 }
-function pmRefresh(el, t) { const fs = el.closest("fieldset.pm"); if (fs) fs.outerHTML = pmHtml(t.m, "", t.item || ""); }
+function pmRefresh(el, t) { const fs = el.closest("fieldset.pm"); if (fs) fs.outerHTML = pmHtml(t.m, "", t.item || "", fs.dataset.pmcat || "proc"); }
 document.addEventListener("input", e => { const el = e.target; if (!el.dataset?.pmk) return; const t = pmTarget(el); if (!t) return; t.m[el.dataset.pmk] = el.value.trim(); t.after(); });
 document.addEventListener("change", async e => {
   const el = e.target; if (!el.dataset?.pmin) return; const t = pmTarget(el), f = el.files?.[0]; if (!t || !f) return;
@@ -2398,7 +2403,7 @@ function itemHtml(n, it, no, dis) {
         <span class="seg" role="group" aria-label="ระดับการเปิดเผย">${VIS.map(([vv, vl]) => `<button type="button" class="v-${vv}" ${visb(k, vv)} aria-pressed="${it.vis[k] === vv}"${dis}>${vl}</button>`).join("")}</span></div>
       ${t === "area" ? `<textarea id="${fidOf(k)}" ${bind(k)}${dis}>${esc(it.recipe[k])}</textarea>` : `<input type="text" id="${fidOf(k)}" ${bind(k)} value="${esc(it.recipe[k])}"${dis}>`}
     </div>`; }).join("")}
-    ${it.cat === "proc" || hasMedia(it.media) ? pmHtml(it.media, dis, it.ref) + `<p class="help">วิดีโอแสดงในทำเนียบเมื่อหมอยินยอม “แสดงภาพถ่ายของหมอ” ในหัวข้อ 1 · แผนนวดเผยแพร่พร้อมรายการนี้</p>` : ""}
+    ${MEDIACATS.has(it.cat) || hasMedia(it.media) ? pmHtml(it.media, dis, it.ref, it.cat) + `<p class="help">วิดีโอแสดงในทำเนียบเมื่อหมอยินยอม “แสดงภาพถ่ายของหมอ” ในหัวข้อ 1 · ${(FILEL[it.cat] || FILEL.proc)[1]}เผยแพร่พร้อมรายการนี้</p>` : ""}
   </div>`;
 }
 function recipeFieldsHtml(n, dis) {
