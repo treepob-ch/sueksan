@@ -110,6 +110,15 @@ button { font: inherit; cursor: pointer; }
 .group[id^="cat-"] { scroll-margin-top: 80px; }
 .group[id^="cat-"] h2 { flex-wrap: wrap; row-gap: 2px; white-space: nowrap; }
 .group[id^="cat-"] h2 small { white-space: normal; }
+.pm { display: grid; gap: 10px; }
+.pmrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pml { font-weight: 600; }
+.pmf { font-size: 14px; background: var(--sunk); border-radius: 8px; padding: 4px 10px; max-width: 100%; overflow-wrap: anywhere; }
+.pmview { display: grid; gap: 10px; }
+.pmvid { width: 100%; max-height: 440px; border-radius: 12px; background: #000; }
+.pmimg { width: 100%; max-height: 560px; object-fit: contain; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+.pmlinks { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag.vid { background: var(--turmeric-soft); color: var(--turmeric); border-color: var(--turmeric); }
 .catnav { display: flex; flex-wrap: wrap; gap: 8px; }
 .catnav button { font: inherit; cursor: pointer;  text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 14.5px; }
 .catnav button b { color: var(--leaf); margin-left: 4px; }
@@ -774,9 +783,9 @@ window.__SEED__ = {"healers": {"boonta-sanjai": {"award": "", "consent": "agency
     }
     return reply(404, { error: "ไม่มีในโหมด Google Sheet" });
   }
-  // <img>/<audio> pointing at /_blob/<Drive file id> are filled in from Google Drive
+  // <img>/<audio>/<video> pointing at /_blob/<Drive file id> are filled in from Google Drive
   function hydrateMedia(root) {
-    (root.querySelectorAll ? root.querySelectorAll('img[src^="/_blob/"],audio[src^="/_blob/"],img[src*="/_blob/"],audio[src*="/_blob/"]') : []).forEach(el => {
+    (root.querySelectorAll ? root.querySelectorAll('img[src^="/_blob/"],audio[src^="/_blob/"],video[src^="/_blob/"],img[src*="/_blob/"],audio[src*="/_blob/"],video[src*="/_blob/"]') : []).forEach(el => {
       const m = /\/_blob\/([A-Za-z0-9_-]+)/.exec(el.getAttribute("src") || ""); if (!m || el.dataset.gasLoading) return;
       el.dataset.gasLoading = "1"; el.removeAttribute("src");
       gasBlob(m[1]).then(b => { el.src = URL.createObjectURL(b); }).catch(() => { el.alt = "เปิดไฟล์จาก Google Drive ไม่ได้"; });
@@ -941,6 +950,53 @@ function recCat(r) {
   if (m.includes("massage") || m.includes("bone")) return "proc";
   return m.length ? "other" : "drug";
 }
+// สื่อประกอบหัตถการ: วิดีโอ (ลิงก์ หรือคลิปไม่เกิน 20 MB) และไฟล์แผนนวด (ภาพ/PDF หรือลิงก์)
+const VMAX = 20 * 1024 * 1024;
+const okUrl = v => /^https:\/\/\S+$/i.test(String(v || "").trim());
+const mbStr = b => b ? " · " + (b / 1048576).toFixed(1) + " MB" : "";
+const blankMedia = () => ({ videoUrl: "", video: null, chartUrl: "", chart: null });
+const mediaOf = o => ({ ...blankMedia(), videoUrl: o?.videoUrl || "", video: o?.video || null, chartUrl: o?.chartUrl || "", chart: o?.chart || null });
+const hasMedia = it => !!(it?.video?.asset || okUrl(it?.videoUrl) || it?.chart || okUrl(it?.chartUrl));
+function pmHtml(m, dis) {
+  const row = (w, label, accept, help) => { const e = m[w]; return `<div class="pmrow"><span class="pml">${label}</span>${e ? `<span class="pmf">${w === "video" ? "🎬" : "🗺️"} ${esc(e.name || "ไฟล์")}${mbStr(e.size)}</span>${dis ? "" : `<button class="btn" type="button" data-pmdel="${w}">ลบไฟล์</button>`}` : ""}${dis ? "" : `<span class="btn filebtn">${e ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}<input type="file" data-pmin="${w}" accept="${accept}" aria-label="${label}"></span>`}<span class="help">${help}</span></div>`; };
+  return `<fieldset class="pm wide"><legend>สื่อประกอบหัตถการ</legend>
+    <label>ลิงก์วิดีโอสาธิต (YouTube, Google Drive, Facebook ฯลฯ)<input type="url" data-pmk="videoUrl" value="${esc(m.videoUrl || "")}" placeholder="https://"${dis}></label>
+    ${assets ? row("video", "หรืออัปโหลดคลิป", "video/*", "MP4 ไม่เกิน 20 MB · คลิปยาวให้ใส่เป็นลิงก์") : `<p class="help">โหมดนี้อัปโหลดคลิปไม่ได้ ใส่วิดีโอเป็นลิงก์แทน</p>`}
+    ${row("chart", "ไฟล์แผนนวด", "image/*,application/pdf", "ภาพหรือ PDF เช่น แผนภาพจุดนวด แนวเส้น ลำดับท่า")}
+    <label>หรือลิงก์แผนนวด<input type="url" data-pmk="chartUrl" value="${esc(m.chartUrl || "")}" placeholder="https://"${dis}></label>
+  </fieldset>`;
+}
+async function storeMedia(f, w) {
+  const mime = f.type || (/\.pdf$/i.test(f.name) ? "application/pdf" : /\.mp4$/i.test(f.name) ? "video/mp4" : "");
+  if (w === "video") {
+    if (!mime.startsWith("video/")) throw "เลือกไฟล์วิดีโอ";
+    if (f.size > VMAX) throw "คลิปใหญ่เกิน 20 MB ใส่เป็นลิงก์แทน";
+    if (!assets) throw "โหมดนี้อัปโหลดคลิปไม่ได้ ใส่เป็นลิงก์แทน";
+    const r = await assets.upload(f, { type: mime }); return { asset: r.id, name: f.name, mime, size: f.size };
+  }
+  if (mime.startsWith("image/")) {
+    if (assets) { try { const { blob } = await downscale(f, 2000, 0.85); const r = await assets.upload(blob, { type: "image/jpeg" }); return { asset: r.id, name: f.name, mime: "image/jpeg" }; } catch {} }
+    const d = await downscale(f, 1400, 0.75); return { src: d.dataUrl(), name: f.name, mime: "image/jpeg" };
+  }
+  if (mime === "application/pdf") {
+    if (f.size > VMAX) throw "ไฟล์ใหญ่เกิน 20 MB";
+    if (assets) { try { const r = await assets.upload(f, { type: mime }); return { asset: r.id, name: f.name, mime, size: f.size }; } catch {} }
+    if (f.size <= 400000) return { src: await fileToDataUrl(f), name: f.name, mime, size: f.size };
+    throw "PDF ใหญ่เกินสำหรับโหมดนี้ ใส่เป็นลิงก์แทน";
+  }
+  throw "ใช้ไฟล์ภาพหรือ PDF";
+}
+function mediaView(it) {
+  if (!hasMedia(it)) return "";
+  const v = it.video, c = it.chart, out = [], links = [];
+  if (v?.asset) out.push(`<video class="pmvid" controls preload="metadata" playsinline src="/_blob/${encodeURIComponent(v.asset)}"></video>`);
+  if (okUrl(it.videoUrl)) out.push(`<div class="pmlinks"><a class="btn primary" href="${esc(it.videoUrl)}" target="_blank" rel="noopener">▶ ดูวิดีโอสาธิต</a></div>`);
+  if (c?.mime?.startsWith("image/")) out.push(`<img class="pmimg" alt="แผนนวด ${esc(it.name || "")}" src="${c.asset ? "/_blob/" + encodeURIComponent(c.asset) : esc(c.src || "")}">`);
+  else if (c?.asset) links.push(`<a class="btn" href="/_blob/${encodeURIComponent(c.asset)}" target="_blank" rel="noopener">📄 เปิดแผนนวด (PDF)</a>`);
+  else if (c?.src) links.push(`<button class="btn" type="button" data-pmopen="${esc(it.id || "")}">📄 เปิดแผนนวด (PDF)</button>`);
+  if (okUrl(it.chartUrl)) links.push(`<a class="btn" href="${esc(it.chartUrl)}" target="_blank" rel="noopener">🗺️ แผนนวด (ลิงก์)</a>`);
+  return `<div class="f"><h3>วิดีโอและแผนนวด</h3><div class="pmview">${out.join("")}${links.length ? `<div class="pmlinks">${links.join("")}</div>` : ""}</div></div>`;
+}
 const catCount = rs => RCATS.map(([k, l]) => [k, l, rs.filter(r => recCat(r) === k).length]).filter(x => x[2]);
 ML.research = "งานวิจัย";
 // the six official folk-healer categories (ระเบียบกระทรวงสาธารณสุข ว่าด้วยการรับรองหมอพื้นบ้าน)
@@ -1095,7 +1151,7 @@ function recipeCard(it, showOwner = true) {
   const ev = it.evidence || (it.kind === "general" ? "official" : "folk");
   const syms = String(it.symptoms || "").split(/[,،\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 6);
   const body = it.kind === "recipe" || it.kind === "text"
-    ? rfield(it, "ingredients", "ส่วนประกอบ") + rfield(it, "properties", "สรรพคุณ") + rfield(it, "preparation", "วิธีทำ") + rfield(it, "usage", "วิธีใช้ / วิธีรับประทาน") + rfield(it, "caution", "ข้อควรระวัง", "warn")
+    ? rfield(it, "ingredients", "ส่วนประกอบ") + rfield(it, "properties", "สรรพคุณ") + rfield(it, "preparation", "วิธีทำ") + rfield(it, "usage", "วิธีใช้ / วิธีรับประทาน") + rfield(it, "caution", "ข้อควรระวัง", "warn") + (it.kind === "recipe" ? mediaView(it) : "")
       + (it.kind === "text" ? srcLine(it.source || "ไม่ระบุชื่อเอกสาร", "") : "")
       + (it.hash ? `<div class="src">จากแบบ ม.บ.1-1 ของหมอพื้นบ้านที่ได้รับการรับรองแล้ว${h?.licenseNo ? " (หนังสือรับรองเลขที่ " + esc(h.licenseNo) + ")" : ""} · รหัสยืนยันความถูกต้อง <code>${esc(it.hash.slice(0, 16))}…</code></div>` : "")
     : field("วิธีใช้", it.howto) + field("ข้อควรระวัง", it.caution, "warn") + field("เมื่อไรควรพบแพทย์", it.seeDoctor, "doc") + srcLine(it.sourceTitle, it.sourceUrl);
@@ -1103,7 +1159,7 @@ function recipeCard(it, showOwner = true) {
   const acts = isStaff() && it.kind === "recipe" && (isAdmin() || it.fromField) ? `<div class="acts">${it.fromField && S.fieldOk ? `<button class="btn" type="button" data-nact="open" data-id="${it.fromField}">เปิดแฟ้มบันทึก</button>` : ""}${isAdmin() && !it.fromField ? `<button class="btn" type="button" data-act="editRecipe" data-id="${it.id}">แก้ไขตำรับ</button><span class="sp"></span>${delCtl("recipes", it.id)}` : ""}</div>` : "";
   return `<details class="card" data-id="${it.id}"${S.open.has(it.id) ? " open" : ""}>
     <summary><div class="top"><span class="name">${hl(it.name)}</span><span class="more"><span class="o">ดูรายละเอียด ▾</span><span class="c">ย่อ ▴</span></span></div>
-      <div class="tags">${it.kind === "recipe" && showOwner ? `<span class="tag cat">${RCL[recCat(it)]}</span>` : ""}${it.types.map(t => `<span class="tag">${esc(ML[t] || "อื่น ๆ")}</span>`).join("")}<span class="ev ${ev}">${EV[ev]}</span>${it.kind === "recipe" ? "" : it.kind === "text" ? `<span class="tag s">ใช้ได้ทุกพื้นที่</span>` : `<span class="tag s">ความรู้ทั่วไป · ใช้ได้ทุกพื้นที่</span>`}${it.matched?.length && symTerms().length > 1 ? `<span class="tag hit">ตรงกับ ${esc(it.matched.join(", "))}</span>` : ""}${syms.map(s => `<span class="tag s">${hl(s)}</span>`).join("")}</div>
+      <div class="tags">${it.kind === "recipe" && showOwner ? `<span class="tag cat">${RCL[recCat(it)]}</span>` : ""}${it.kind === "recipe" && (it.video?.asset || okUrl(it.videoUrl)) ? `<span class="tag vid">🎬 มีวิดีโอ</span>` : ""}${it.types.map(t => `<span class="tag">${esc(ML[t] || "อื่น ๆ")}</span>`).join("")}<span class="ev ${ev}">${EV[ev]}</span>${it.kind === "recipe" ? "" : it.kind === "text" ? `<span class="tag s">ใช้ได้ทุกพื้นที่</span>` : `<span class="tag s">ความรู้ทั่วไป · ใช้ได้ทุกพื้นที่</span>`}${it.matched?.length && symTerms().length > 1 ? `<span class="tag hit">ตรงกับ ${esc(it.matched.join(", "))}</span>` : ""}${syms.map(s => `<span class="tag s">${hl(s)}</span>`).join("")}</div>
       ${it.summary ? `<span class="sum">${hl(it.summary)}</span>` : ""}${owner}
     </summary>
     <div class="body">${body}${it.kind === "recipe" || it.kind === "text" ? `<div class="askrow"><button class="link" type="button" data-act="ask" data-topic="${esc(it.name)}" data-purpose="research">สนใจศึกษาตำรับนี้ ติดต่อเจ้าหน้าที่ →</button></div>` : ""}${acts}</div></details>`;
@@ -1456,7 +1512,7 @@ function openForm(kind, o) {
   const body0 = kind === "healers"
     ? input(["photo", HL.photo[0], "photo"], o) + HGROUPS.map(([gt, keys]) => `<fieldset class="grp"><legend>${gt}</legend><div class="row2">${keys.map(k => input([k, HL[k][0], HL[k][1]], o)).join("")}</div></fieldset>`).join("")
       + `<fieldset class="grp"><legend>การยินยอมและแหล่งที่มา</legend><div class="row2">${HF.slice(HPF.length).map(f => input(f, o)).join("")}</div></fieldset>`
-    : spec.map(f => input(f, o)).join("");
+    : spec.map(f => input(f, o)).join("") + `<div id="procMedia"${recCat(o) === "proc" || hasMedia(o) ? "" : " hidden"}>${pmHtml((FM = { m: mediaOf(o), after() {} }).m, "")}</div>`;
   $("#formSlot").innerHTML = `<form class="editor" id="editor" novalidate><h2>${esc(title)}</h2>${kind === "healers" && !o.id ? `<p class="help">ใช้สำหรับหมอที่มีข้อมูลในเอกสารเผยแพร่แล้ว ข้อมูลจะขึ้นทำเนียบทันที</p>` : ""}${body0}<p class="err" id="ferr"></p>
     <div class="acts" style="border:0;padding:0"><button class="btn primary" type="submit" id="saveBtn">บันทึก</button><button class="btn" type="button" id="cancelBtn">ยกเลิก</button></div></form>`;
   const f = $("#editor"); f.scrollIntoView({ block: "start" }); (f.querySelector("#f_personName") || f.querySelector("#f_name")).focus();
@@ -1467,6 +1523,7 @@ function openForm(kind, o) {
     $("#f_photoDel").onclick = () => { $("#f_photo").value = ""; showPv(); };
   }
   $("#cancelBtn").onclick = () => $("#formSlot").innerHTML = "";
+  if (kind === "recipes") f.querySelector("#f_cat").onchange = e => { $("#procMedia").hidden = e.target.value !== "proc" && !hasMedia(FM.m); };
   f.onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(f), data = {};
@@ -1476,7 +1533,7 @@ function openForm(kind, o) {
     if (kind === "healers" && !data.healerType) return $("#ferr").textContent = "กรุณาเลือกประเภทหมอพื้นบ้านอย่างน้อย 1 ประเภท";
     if (data.sourceUrl && !/^https?:\/\//i.test(data.sourceUrl)) return $("#ferr").textContent = "ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://";
     if (kind === "healers" && !mapOk(data.mapUrl)) return $("#ferr").textContent = "ตำแหน่งบนแผนที่ต้องเป็นลิงก์ที่ขึ้นต้นด้วย https:// หรือพิกัด เช่น 16.0544, 103.6531";
-    if (kind === "recipes") data.healerId = o.healerId;
+    if (kind === "recipes") { data.healerId = o.healerId; Object.assign(data, FM.m); }
     data.updatedAt = Date.now();
     const btn = $("#saveBtn"); btn.disabled = true; btn.textContent = "กำลังบันทึก…";
     try {
@@ -1538,6 +1595,26 @@ document.addEventListener("click", async e => {
   }
 });
 $("#addHealer").addEventListener("click", openChooser);
+let FM = null; // media being edited in the ตำรับ form
+function pmTarget(el) {
+  if (el.closest("#editor")) return FM;
+  const n = S.draft; if (!n || nlocked(n)) return null;
+  return { m: n.media, after() { n.updatedAt = Date.now(); scheduleSave(); refreshLive(); } };
+}
+function pmRefresh(el, t) { const fs = el.closest("fieldset.pm"); if (fs) fs.outerHTML = pmHtml(t.m, ""); }
+document.addEventListener("input", e => { const el = e.target; if (!el.dataset?.pmk) return; const t = pmTarget(el); if (!t) return; t.m[el.dataset.pmk] = el.value.trim(); t.after(); });
+document.addEventListener("change", async e => {
+  const el = e.target; if (!el.dataset?.pmin) return; const t = pmTarget(el), f = el.files?.[0]; if (!t || !f) return;
+  const w = el.dataset.pmin; toast(w === "video" ? "กำลังอัปโหลดคลิป…" : "กำลังเพิ่มไฟล์…");
+  try { t.m[w] = await storeMedia(f, w); t.after(); toast("เพิ่มไฟล์แล้ว"); } catch (err) { toast(typeof err === "string" ? err : "เพิ่มไฟล์ไม่สำเร็จ ลองอีกครั้ง"); }
+  pmRefresh(el, t);
+});
+document.addEventListener("click", async e => {
+  const d = e.target.closest("[data-pmdel]");
+  if (d) { const t = pmTarget(d); if (!t) return; t.m[d.dataset.pmdel] = null; t.after(); pmRefresh(d, t); return; }
+  const o = e.target.closest("[data-pmopen]");
+  if (o) { const r = S.recipes.find(x => x.id === o.dataset.pmopen); if (!r?.chart?.src) return; const b = await (await fetch(r.chart.src)).blob(); window.open(URL.createObjectURL(b), "_blank"); }
+});
 document.addEventListener("click", e => { const b = e.target.closest("[data-catjump]"); if (b) document.getElementById("cat-" + b.dataset.catjump)?.scrollIntoView({ behavior: "smooth", block: "start" }); });
 $("#q").addEventListener("input", e => { S.q = e.target.value; $("#clearQ").hidden = !S.q; render(); });
 $("#q").addEventListener("keydown", e => {
@@ -1754,7 +1831,7 @@ function blankNote(id, h) {
     healerId: h?.id || "",
     healer: profileOf(h), origin: "request", docRecipes: [], archived: null, mb: blankMb(), docs: blankDocs(), qual: blankQual(), fix: null, fixLog: [],
     transcript: "", audio: [], photos: [], methods: arr(h?.methods).length ? arr(h.methods) : ["herb"],
-    recipe: { name: "", symptoms: "", ingredients: "", preparation: "", usage: "", properties: "", caution: "" },
+    recipe: { name: "", symptoms: "", ingredients: "", preparation: "", usage: "", properties: "", caution: "" }, cat: "", media: blankMedia(),
     vis: { ...DEFVIS }, review: { by: "", note: "", assignedTo: provName(h?.province), checks: { plant: false, caution: false, transcript: false } },
     consent: { method: "none", by: "", witness: "", date: "", interview: false, publish: false, location: false, photo: false, research: false, commercial: false },
     needReconfirm: false, hash: "", hashAt: 0, publishedHealerId: "", publishedRecipeId: "", submittedBy: "", approval: null,
@@ -1768,7 +1845,7 @@ function normalize(n) {
   if (!healer.personName) healer.personName = personOf(healer);
   if (!healer.prefix && healer.name) healer.prefix = splitName(healer.name).prefix;
   delete healer.type;
-  return { ...b, ...n, healer, status: ["ready", "review", "approval", "rejected", "lapsed"].includes(n.status) ? "draft" : SL[n.status] === undefined ? "draft" : n.status, recipe: { ...b.recipe, ...n.recipe }, vis: { ...b.vis, ...n.vis }, review: { ...b.review, ...n.review }, consent: { ...b.consent, ...n.consent }, mb: { ...b.mb, ...n.mb }, docs: { ...b.docs, ...n.docs }, qual: { ...b.qual, ...n.qual }, fixLog: arr(n.fixLog), audio: arr(n.audio), photos: arr(n.photos), methods: arr(n.methods), history: arr(n.history) };
+  return { ...b, ...n, healer, status: ["ready", "review", "approval", "rejected", "lapsed"].includes(n.status) ? "draft" : SL[n.status] === undefined ? "draft" : n.status, recipe: { ...b.recipe, ...n.recipe }, cat: RCL[n.cat] ? n.cat : "", media: { ...b.media, ...n.media }, vis: { ...b.vis, ...n.vis }, review: { ...b.review, ...n.review }, consent: { ...b.consent, ...n.consent }, mb: { ...b.mb, ...n.mb }, docs: { ...b.docs, ...n.docs }, qual: { ...b.qual, ...n.qual }, fixLog: arr(n.fixLog), audio: arr(n.audio), photos: arr(n.photos), methods: arr(n.methods), history: arr(n.history) };
 }
 const getP = (o, p) => p.split(".").reduce((a, k) => a?.[k], o);
 function setP(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
@@ -1883,6 +1960,7 @@ async function syncRecord(n) {
         const rec = { methods: n.methods, evidence: "folk", healerId: hid, fromField: n.id, hash: n.hash, locked: {}, consentScope: { research: n.consent.research, commercial: n.consent.commercial }, updatedAt: Date.now() };
         for (const [k] of NRF) { const v = n.recipe[k].trim(); if (n.vis[k] === "public") rec[k] = v; else { rec[k] = ""; if (v) rec.locked[k] = n.vis[k]; } }
         if (!rec.name) rec.name = "ตำรับที่หมอขอสงวนชื่อ";
+        Object.assign(rec, pubMedia(n));
         const rr = n.publishedRecipeId ? db.collection("recipes").doc(n.publishedRecipeId) : db.collection("recipes").doc();
         await rr.set(rec); n.publishedRecipeId = rr.id;
       } else if (n.publishedRecipeId) { await db.collection("recipes").doc(n.publishedRecipeId).delete(); n.publishedRecipeId = ""; }
@@ -1915,6 +1993,7 @@ function updateBadges() {
   al.hidden = !show;
   if (show) al.innerHTML = `<span>🔔 มี <b>${appr}</b> คำขอรอเสนอคณะกรรมการหมอพื้นบ้าน</span><button class="btn primary" type="button" data-nact="toBatch">ไปที่ชุดเสนอคณะกรรมการ</button>`;
 }
+const pubMedia = n => { const m = n.media || {}, vid = !!n.consent.photo; return { cat: RCL[n.cat] ? n.cat : "", videoUrl: vid && okUrl(m.videoUrl) ? m.videoUrl.trim() : "", video: vid && m.video?.asset ? m.video : null, chartUrl: okUrl(m.chartUrl) ? m.chartUrl.trim() : "", chart: m.chart || null }; };
 const noteTitle = n => n.healer.name || n.recipe.name || n.topic || "บันทึกไม่มีชื่อ";
 function notifyChanges(next) {
   const prev = S.prevStatus, map = {};
@@ -1979,6 +2058,7 @@ async function publishOne(n, appr, hmap) {
           approval: { docNo: appr.docNo, docDate: appr.docDate, batch: appr.batch }, updatedAt: Date.now() };
         for (const [k] of NRF) { const v = n.recipe[k].trim(); if (n.vis[k] === "public") rec[k] = v; else { rec[k] = ""; if (v) rec.locked[k] = n.vis[k]; } }
         if (!rec.name) rec.name = "ตำรับที่หมอขอสงวนชื่อ";
+        Object.assign(rec, pubMedia(n));
         const rr = n.publishedRecipeId ? db.collection("recipes").doc(n.publishedRecipeId) : db.collection("recipes").doc();
         await rr.set(rec); n.publishedRecipeId = rr.id;
       }
@@ -2145,13 +2225,17 @@ function noteHField(k, n, dis) {
   if (t === "area") return `<div class="wide">${fld(l, key, n, "area", k === "lineage" ? 'placeholder="บรรพบุรุษ ครูหมอ ตำราใบลาน ฯลฯ"' : 'placeholder="โรคหรืออาการที่ชำนาญ"')}</div>`;
   return fld(l, key, n, t === "number" ? "number" : t === "date" ? "date" : "text", t === "number" ? 'inputmode="numeric" min="0"' : "");
 }
+const noteCat = n => recCat({ cat: n.cat, methods: n.methods, name: n.recipe.name });
+function syncProc(n) { const el = $("#procMedia"); if (el) el.hidden = noteCat(n) !== "proc" && !hasMedia(n.media); }
 function recipeFieldsHtml(n, dis) {
-  return `<fieldset><legend>ด้าน</legend><div class="opts">${METHODS.map(([m, ml]) => `<label for="n-meth-${m}"><input type="checkbox" id="n-meth-${m}" data-meth="${m}"${n.methods.includes(m) ? " checked" : ""}${dis}> ${ml}</label>`).join("")}</div></fieldset>
+  return `<label for="n-cat">หมวด<select id="n-cat" data-k="cat"${dis}><option value="">จัดอัตโนมัติจากด้านที่เลือก</option>${RCATS.map(([a, b, d]) => `<option value="${a}"${n.cat === a ? " selected" : ""}>${b} · ${d}</option>`).join("")}</select></label>
+      <fieldset><legend>ด้าน</legend><div class="opts">${METHODS.map(([m, ml]) => `<label for="n-meth-${m}"><input type="checkbox" id="n-meth-${m}" data-meth="${m}"${n.methods.includes(m) ? " checked" : ""}${dis}> ${ml}</label>`).join("")}</div></fieldset>
       ${NRF.map(([k, l, t]) => `<div class="rf">
         <div class="lab"><label for="${fid("recipe." + k)}">${l}</label>
           <span class="seg" role="group" aria-label="ระดับการเปิดเผย">${VIS.map(([vv, vl]) => `<button type="button" class="v-${vv}" data-vis="${k}" data-v="${vv}" aria-pressed="${n.vis[k] === vv}"${dis}>${vl}</button>`).join("")}</span></div>
         ${t === "area" ? `<textarea id="${fid("recipe." + k)}" data-k="recipe.${k}"${dis}>${esc(n.recipe[k])}</textarea>` : `<input type="text" id="${fid("recipe." + k)}" data-k="recipe.${k}" value="${esc(n.recipe[k])}"${dis}>`}
-      </div>`).join("")}`;
+      </div>`).join("")}
+      <div id="procMedia"${noteCat(n) === "proc" || hasMedia(n.media) ? "" : " hidden"}>${pmHtml(n.media, dis)}<p class="help">วิดีโอแสดงในทำเนียบเมื่อหมอยินยอม “แสดงภาพถ่ายของหมอ” ในหัวข้อ 1 · แผนนวดเผยแพร่พร้อมตำรับ</p></div>`;
 }
 function mbField([k, l, t], n, dis) {
   const key = "mb." + k, id = fid(key), val = n.mb[k] ?? "";
@@ -2772,13 +2856,14 @@ function onField(e) {
     n.updatedAt = Date.now(); scheduleSave(); refreshLive(); return;
   }
   if (el.dataset?.meth) {
-    const m = el.dataset.meth; n.methods = el.checked ? [...new Set([...n.methods, m])] : n.methods.filter(x => x !== m);
+    const m = el.dataset.meth; n.methods = el.checked ? [...new Set([...n.methods, m])] : n.methods.filter(x => x !== m); syncProc(n);
     n.updatedAt = Date.now(); scheduleSave(); refreshLive(); return;
   }
   const k = el.dataset?.k; if (!k) return;
   const v = el.type === "checkbox" ? el.checked : el.value;
   if (getP(n, k) === v) return;
   setP(n, k, v);
+  if (k === "cat" || k === "recipe.name") syncProc(n);
   if (k === "healer.prefix" || k === "healer.personName") n.healer.name = fullName(n.healer);
   if (k === "healer.province" && n.status === "draft" && !n.review.assignedTo && provName(v)) n.review.assignedTo = provName(v);
   if (k.startsWith("recipe.") && n.vis[k.slice(7)] === "public") flagReconfirm(n, "แก้ไขช่องที่เปิดเผย ต้องให้หมอยืนยันอีกครั้ง");
