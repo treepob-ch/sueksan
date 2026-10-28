@@ -121,6 +121,10 @@ button { font: inherit; cursor: pointer; }
 .tag.vid { background: var(--turmeric-soft); color: var(--turmeric); border-color: var(--turmeric); }
 .catnav button[aria-selected="true"] { background: var(--leaf); color: #fff; border-color: var(--leaf); }
 .catnav button[aria-selected="true"] b { color: #fff; }
+.catnav button.zero:not([aria-selected="true"]) { color: var(--muted); border-style: dashed; }
+.catnav button.zero:not([aria-selected="true"]) b { color: var(--muted); }
+.catempty { padding: 18px 16px; }
+.catempty small { display: block; margin-top: 4px; }
 .pcard { padding: 14px 16px; display: grid; gap: 12px; grid-template-columns: minmax(0, 860px); }
 .pcard .phead { display: grid; gap: 4px; }
 .vbox { position: relative; aspect-ratio: 16 / 9; background: #10140f; border-radius: 12px; overflow: hidden; }
@@ -1462,8 +1466,7 @@ function renderHealer() {
         ${(() => { const dn = S.fieldOk ? S.notes.find(x => x.origin === "document" && x.healerId === h.id) : null; return dn ? `<div><button class="btn" type="button" data-nact="open" data-id="${dn.id}">ดูบันทึกในคลัง</button></div>` : ""; })()}
         ${nNotes ? `<div class="privacy">มีบันทึกของหมอท่านนี้ที่ยังไม่เข้าคลัง ${nNotes} รายการ ดูได้ในแท็บ “บันทึกหมอที่ได้รับรอง”</div>` : ""}` : ""}
     </div>
-    ${rs.length ? (() => { const cc = catCount(rs), sel = cc.some(x => x[0] === S.hcat) ? S.hcat : "all"; return `<nav class="catnav" id="catnav" role="tablist" aria-label="หมวดภูมิปัญญา"><button type="button" role="tab" data-catjump="all" aria-selected="${sel === "all"}">ทั้งหมด <b>${rs.length}</b></button>${cc.map(([k, l, c]) => `<button type="button" role="tab" data-catjump="${k}" aria-selected="${sel === k}">${k === "proc" ? "🎬 " : ""}${l} <b>${c}</b></button>`).join("")}</nav>` + RCATS.filter(([k]) => sel === "all" || sel === k).map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return g.length ? `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${k === "proc" ? "ดูวิดีโอสาธิตและแผนนวด" : d}</small></h2>${g.map(r => recipeCard(r, false, k === "proc")).join("")}</section>` : ""; }).join(""); })()
-      : `<section class="group"><h2>ตำรับยาและหัตถการ</h2><div class="empty">ยังไม่มีข้อมูลตำรับยาหรือหัตถการของหมอท่านนี้</div></section>`}`;
+    ${(() => { const sel = RCATS.some(x => x[0] === S.hcat) ? S.hcat : "all", none = { drug: "ยังไม่มีตำรับยาของหมอท่านนี้", proc: "ยังไม่มีข้อมูลหัตถการของหมอท่านนี้ เช่น ท่านวด วิดีโอสาธิต หรือแผนนวด", other: "ยังไม่มีข้อมูลในหมวดนี้" }; return `<nav class="catnav" id="catnav" role="tablist" aria-label="หมวดภูมิปัญญา"><button type="button" role="tab" data-catjump="all" aria-selected="${sel === "all"}">ทั้งหมด <b>${rs.length}</b></button>${RCATS.map(([k, l]) => { const c = rs.filter(r => recCat(r) === k).length; return `<button type="button" role="tab" data-catjump="${k}" aria-selected="${sel === k}"${c ? "" : ' class="zero"'}>${k === "proc" ? "🎬 " : ""}${l} <b>${c}</b></button>`; }).join("")}</nav>` + RCATS.filter(([k]) => sel === "all" || sel === k).map(([k, l, d]) => { const g = rs.filter(r => recCat(r) === k); return `<section class="group" id="cat-${k}"><h2>${l}<small>${g.length} รายการ · ${k === "proc" ? "ดูวิดีโอสาธิตและแผนนวด" : d}</small></h2>${g.length ? g.map(r => recipeCard(r, false, k === "proc")).join("") : `<div class="empty catempty">${none[k]}${isStaff() ? `<small>${h.fromField && S.fieldOk ? "เพิ่มได้ที่ “แก้ไขข้อมูลหมอ (แฟ้มบันทึก)”" : isAdmin() ? "เพิ่มได้ที่ “+ เพิ่มตำรับจากเอกสาร”" : ""}</small>` : ""}</div>`}</section>`; }).join(""); })()}`;
 }
 
 function render() {
